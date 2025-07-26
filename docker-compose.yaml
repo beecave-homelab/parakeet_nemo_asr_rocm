@@ -1,0 +1,24 @@
+services:
+  parakeet-asr:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: parakeet-nemo-asr-rocm:latest
+    container_name: parakeet-asr-rocm
+    ports:
+      - "8000:8000"
+    environment:
+      HSA_OVERRIDE_GFX_VERSION: "10.3.0"
+      LD_LIBRARY_PATH: "/opt/rocm/lib:/opt/rocm/lib64"
+      TZ: "Europe/Amsterdam"
+    devices:
+      - "/dev/kfd"
+      - "/dev/dri"
+    group_add:
+      - "video"
+      - "render"
+    volumes:
+      - "/opt/rocm:/opt/rocm:ro"
+      - "./data:/data"
+    command: ["python", "-m", "parakeet_nemo_asr_rocm.app"]
+    restart: unless-stopped

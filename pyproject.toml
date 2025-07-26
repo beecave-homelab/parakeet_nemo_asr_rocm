@@ -1,0 +1,86 @@
+[project]
+name = "parakeet-nemo-asr-rocm"
+version = "0.1.1"
+description = "ASR inference service for NVIDIA Parakeet-TDT 0.6B v2 on AMD ROCm GPUs"
+authors = [{ name = "elvee" }]
+requires-python = ">=3.10,<3.11"
+
+# ---- NeMo requirements.txt ----
+dependencies = [
+  "fsspec==2024.12.0",
+  "huggingface_hub>=0.24",
+  "numba",
+  "numpy>=1.22",
+  # "onnx>=1.7.0",
+  "protobuf~=5.29.5",
+  "python-dateutil",
+  "ruamel.yaml",
+  "scikit-learn",
+  "setuptools>=70.0.0",
+  "tensorboard",
+  "text-unidecode",
+  # "torch==2.7.1",
+  # "torchaudio==2.7.1",
+  "tqdm>=4.41.0",
+  "wget",
+  "wrapt",
+
+  # ---- NeMo requirements_asr.txt ----
+  "braceexpand",
+  "editdistance",
+  "einops",
+  "jiwer>=3.1.0,<4.0.0",
+  "kaldi-python-io",
+  "lhotse!=1.31.0",
+  "librosa>=0.10.1",
+  "marshmallow",
+  "optuna",
+  "packaging",
+  "pyannote.core",
+  "pyannote.metrics",
+  "pydub",
+  "pyloudnorm",
+  "resampy",
+  "scipy>=0.14",
+  "soundfile",
+  "sox<=1.5.0",
+  "texterrors<1.0.0",
+  "whisper_normalizer",
+  "nemo-toolkit[asr]>=2.4.0",
+]
+
+[project.optional-dependencies]
+rocm = [
+  "torch==2.7.1",
+  "torchaudio==2.7.1",
+  "onnxruntime-rocm==1.21.0",
+]
+
+[project.scripts]
+parakeet-nemo-asr-rocm = "parakeet_nemo_asr_rocm.cli:main"
+transcribe = "parakeet_nemo_asr_rocm.transcribe:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["parakeet_nemo_asr_rocm"]
+
+[tool.pdm]
+distribution = true
+
+[[tool.pdm.source]]
+name = "pypi"
+url = "https://pypi.org/simple/"
+verify_ssl = true
+type = "index"
+exclude_packages = ["torch", "torchaudio", "onnxruntime-rocm", "pytorch-triton-rocm", "nvidia-*"]
+include_packages = ["*"]
+
+[[tool.pdm.source]]
+name = "rocm-wheels"
+url = "https://repo.radeon.com/rocm/manylinux/rocm-rel-6.4.2/"
+verify_ssl = true
+type = "find_links"
+include_packages = ["torch", "torchaudio", "onnxruntime-rocm", "pytorch-triton-rocm"]

@@ -1,0 +1,10 @@
+# Exclude git and caches
+.git
+__pycache__
+*.py[cod]
+*.egg-info
+dist/
+build/
+.cache
+.pdm.toml
+pdm.lock
