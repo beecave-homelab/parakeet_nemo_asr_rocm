@@ -205,5 +205,10 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
-data/samples/sample_mono.wav
-data/samples/sample.wav
+
+# Sample audio files
+data/samples/*.wav
+data/samples/*.mp3
+data/samples/*.ogg
+data/samples/*.flac
+data/samples/*.m4a

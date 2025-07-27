@@ -47,6 +47,7 @@ dependencies = [
   "texterrors<1.0.0",
   "whisper_normalizer",
   "nemo-toolkit[asr]>=2.4.0",
+  "python-dotenv>=1.1.1",
 ]
 
 [project.optional-dependencies]
