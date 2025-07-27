@@ -37,13 +37,26 @@ Prereqs: Python 3.10, ROCm 6.4.1, PDM ≥2.15, ROCm PyTorch wheels in your `--fi
 # Create lockfile + install deps (incl. rocm extras)
 make lock      # pdm lock && pdm export …
 pdm install -G rocm
+```
 
+ 
+
+```bash
 # Run unit tests
 make test      # pytest -q
 
 # Transcribe a wav locally
 python -m parakeet_nemo_asr_rocm.app data/samples/sample.wav
 ```
+
+ 
+
+By default the waveform is split into 20-second segments before inference. Override globally by adding to `.env`:
+
+```env
+CHUNK_LEN_SEC=30  # or any value >0
+```
+
 
 ## Troubleshooting
 

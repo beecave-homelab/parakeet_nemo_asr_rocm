@@ -9,6 +9,7 @@ This repository provides a containerised, GPU-accelerated Automatic Speech Recog
 - [Directory layout](#directory-layout)
 - [Key technology choices](#key-technology-choices)
 - [Build & run (quick)](#build--run-quick)
+- [Configuration & environment variables](#configuration--environment-variables)
 - [Next steps / TODO](#next-steps--todo)
 
 ---
@@ -48,6 +49,18 @@ parakeet_nemo_asr_rocm/
     ├── __init__.py
     └── test_transcribe.py
 ```
+
+## Audio format support
+
+The service now accepts and automatically decodes **WAV, MP3, AAC, FLAC and MP4** audio inputs. Decoding first attempts `libsndfile` (via `soundfile`) and transparently falls back to **pydub + ffmpeg** for formats not natively supported.
+
+## Configuration & environment variables
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `PYTORCH_HIP_ALLOC_CONF` | Mitigate ROCm GPU memory fragmentation | `expandable_segments:True` |
+| `NEUTRON_NUMBA_DISABLE_JIT` | Optionally disable Numba JIT to save VRAM | `1` |
+| `CHUNK_LEN_SEC` | Length (s) of audio chunks for segmented inference | `20` |
 
 ## Key technology choices
 
