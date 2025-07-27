@@ -24,3 +24,8 @@ DEFAULT_CHUNK_LEN_SEC: Final[int] = int(os.getenv("CHUNK_LEN_SEC", "20"))
 
 # Default batch size for model inference
 DEFAULT_BATCH_SIZE: Final[int] = int(os.getenv("BATCH_SIZE", "1"))
+
+# Caption segmentation thresholds (can be tuned via environment variables)
+SEGMENT_MAX_GAP_SEC: Final[float] = float(os.getenv("SEGMENT_MAX_GAP_SEC", "1.0"))
+SEGMENT_MAX_DURATION_SEC: Final[float] = float(os.getenv("SEGMENT_MAX_DURATION_SEC", "6.0"))
+SEGMENT_MAX_WORDS: Final[int] = int(os.getenv("SEGMENT_MAX_WORDS", "40"))

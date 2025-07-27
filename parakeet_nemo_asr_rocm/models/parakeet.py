@@ -10,10 +10,10 @@ import torch
 __all__ = ["get_model"]
 
 
-MODEL_NAME = "nvidia/parakeet-tdt-0.6b-v2"
+DEFAULT_MODEL_NAME = "nvidia/parakeet-tdt-0.6b-v2"
 
 
-def _load_model() -> nemo_asr.models.ASRModel:
+def _load_model(model_name: str) -> nemo_asr.models.ASRModel:
     """Loads and initializes the Parakeet ASR model.
 
     This function downloads the pre-trained model from NVIDIA's NGC, sets it
@@ -24,12 +24,12 @@ def _load_model() -> nemo_asr.models.ASRModel:
         The initialized ASRModel instance.
     """
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = nemo_asr.models.ASRModel.from_pretrained(MODEL_NAME).eval().to(device)
+    model = nemo_asr.models.ASRModel.from_pretrained(model_name).eval().to(device)
     return model
 
 
-@lru_cache(maxsize=1)
-def get_model() -> nemo_asr.models.ASRModel:  # pragma: no cover
+@lru_cache(maxsize=4)
+def get_model(model_name: str = DEFAULT_MODEL_NAME) -> nemo_asr.models.ASRModel:  # pragma: no cover
     """Lazily loads and returns a cached instance of the Parakeet ASR model.
 
     This function is decorated with `lru_cache` to ensure the model is loaded
@@ -39,4 +39,4 @@ def get_model() -> nemo_asr.models.ASRModel:  # pragma: no cover
     Returns:
         The cached ASRModel instance, moved to GPU if available.
     """
-    return _load_model()
+    return _load_model(model_name)

@@ -6,8 +6,8 @@ parakeet_nemo_asr_rocm.transcribe <audio files>``.
 
 from __future__ import annotations
 
-import argparse
-import sys
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Iterable, List, Sequence
 
@@ -15,11 +15,13 @@ import numpy as np
 import torch
 
 from parakeet_nemo_asr_rocm.models.parakeet import get_model
-from parakeet_nemo_asr_rocm.utils.audio_io import (DEFAULT_SAMPLE_RATE,
-                                                   load_audio)
+from parakeet_nemo_asr_rocm.utils.audio_io import (
+    DEFAULT_SAMPLE_RATE,
+    load_audio,
+)
 from parakeet_nemo_asr_rocm.utils.constant import DEFAULT_CHUNK_LEN_SEC
 
-__all__ = ["transcribe_paths", "main"]
+__all__ = ["transcribe_paths"]
 
 
 def _chunks(seq: Sequence, size: int) -> Iterable[Sequence]:
@@ -108,48 +110,7 @@ def transcribe_paths(
     return results
 
 
-def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    """Parse command-line arguments for the transcription script.
-
-    Args:
-        argv: Command-line arguments. Defaults to `sys.argv[1:]`.
-
-    Returns:
-        A namespace containing the parsed arguments.
-    """
-    parser = argparse.ArgumentParser(
-        prog="transcribe",
-        description="Batch transcribe audio files using Parakeet-TDT 0.6B v2 (NeMo).",
-    )
-    parser.add_argument(
-        "audio", nargs="+", type=Path, help="Audio file(s) to transcribe"
-    )
-    parser.add_argument("--batch-size", "-b", type=int, default=1, help="Batch size")
-    parser.add_argument(
-        "--chunk-len-sec",
-        dest="chunk_len_sec",
-        type=int,
-        default=DEFAULT_CHUNK_LEN_SEC,
-        help="Segment length in seconds before transcription",
-    )
-    return parser.parse_args(argv)
 
 
-def main(argv: Sequence[str] | None = None) -> None:  # pragma: no cover
-    """Run transcription from the command line.
-
-    Args:
-        argv: Command-line arguments. Defaults to `sys.argv[1:]`.
-    """
-    args = _parse_args(argv)
-    transcripts = transcribe_paths(
-        args.audio,
-        batch_size=args.batch_size,
-        chunk_len_sec=args.chunk_len_sec,
-    )
-    for path, text in zip(args.audio, transcripts, strict=True):
-        print(f"{path}: {text}")
 
 
-if __name__ == "__main__":  # pragma: no cover
-    main(sys.argv[1:])
