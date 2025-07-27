@@ -9,6 +9,12 @@ This keeps runtime dependencies minimal (only argparse). CLI helpers are in
 """
 from __future__ import annotations
 
+# Load project-level environment overrides (e.g. PYTORCH_HIP_ALLOC_CONF) **before**
+# any heavy libraries are imported so they can pick up the flags.
+from .utils.env_loader import load_project_env
+
+load_project_env()
+
 import argparse
 import sys
 from pathlib import Path
