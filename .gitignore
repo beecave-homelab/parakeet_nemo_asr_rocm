@@ -214,5 +214,5 @@ data/samples/*.flac
 data/samples/*.m4a
 
 # Windsurf rules
-.windsurf/rules/*.md
-.windsurf/workflows/*.md
+#.windsurf/rules/*.md
+#.windsurf/workflows/*.md
