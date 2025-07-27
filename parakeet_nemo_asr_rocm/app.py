@@ -12,18 +12,29 @@ from __future__ import annotations
 
 import argparse
 import sys
-
-from .utils.constant import DEFAULT_CHUNK_LEN_SEC, DEFAULT_BATCH_SIZE
 from pathlib import Path
 from typing import Sequence
 
-from .transcribe import transcribe_paths
+from parakeet_nemo_asr_rocm.transcribe import transcribe_paths
+from parakeet_nemo_asr_rocm.utils.constant import (DEFAULT_BATCH_SIZE,
+                                                   DEFAULT_CHUNK_LEN_SEC)
 
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    """Parses command-line arguments for the transcription script.
+
+    Args:
+        argv: A sequence of strings representing the command-line arguments.
+            Defaults to None, which makes argparse use `sys.argv`.
+
+    Returns:
+        An argparse.Namespace object containing the parsed arguments.
+    """
     parser = argparse.ArgumentParser(
         prog="parakeet_nemo_asr_rocm",
-        description="Transcribe audio files with Parakeet-TDT 0.6B v2 (NeMo) on AMD ROCm GPUs.",
+        description=(
+            "Transcribe audio files with Parakeet-TDT 0.6B v2 (NeMo) on AMD ROCm GPUs."
+        ),
     )
     parser.add_argument(
         "audio",
@@ -39,7 +50,8 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Batch size for model inference.",
     )
     parser.add_argument(
-        "--chunk-len",
+        "--chunk-len-sec",
+        dest="chunk_len_sec",
         type=int,
         default=DEFAULT_CHUNK_LEN_SEC,
         help="Segment length in seconds for chunked inference (overridden by CHUNK_LEN_SEC env)",
@@ -48,11 +60,20 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: Sequence[str] | None = None) -> None:  # pragma: no cover
+    """Main entry point for the script.
+
+    Parses command-line arguments and transcribes the specified audio files,
+    printing the results to standard output.
+
+    Args:
+        argv: A sequence of strings representing the command-line arguments.
+            Defaults to None, which makes argparse use `sys.argv`.
+    """
     args = _parse_args(argv)
     transcripts = transcribe_paths(
         args.audio,
         batch_size=args.batch_size,
-        chunk_len=args.chunk_len,
+        chunk_len_sec=args.chunk_len_sec,
     )
     for path, text in zip(args.audio, transcripts, strict=True):
         print(f"{path}: {text}")

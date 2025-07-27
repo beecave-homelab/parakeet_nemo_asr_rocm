@@ -4,6 +4,7 @@ This test is skipped automatically if the sample WAV is missing or CUDA is not
 available (running in CI without GPU). It ensures the function returns a string
 without throwing.
 """
+
 from __future__ import annotations
 
 import os
@@ -18,9 +19,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-@pytest.mark.skipif(
-    os.getenv("CI") == "true", reason="skip GPU-dependent test in CI"
-)
+@pytest.mark.skipif(os.getenv("CI") == "true", reason="skip GPU-dependent test in CI")
 def test_transcribe_smoke(monkeypatch):
     from parakeet_nemo_asr_rocm.transcribe import transcribe_paths
 

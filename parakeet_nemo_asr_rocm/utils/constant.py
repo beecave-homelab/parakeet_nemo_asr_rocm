@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-import pathlib
 import os
+import pathlib
+from typing import Final
+
+from parakeet_nemo_asr_rocm.utils.env_loader import load_project_env
 
 # Ensure .env is loaded exactly once at import time for the whole project
-from .env_loader import load_project_env  # local import to avoid cycles
 load_project_env()
-from typing import Final
 
 
 # Repository root resolved relative to this file (utils/constant.py → package → repo)
