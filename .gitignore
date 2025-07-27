@@ -212,3 +212,7 @@ data/samples/*.mp3
 data/samples/*.ogg
 data/samples/*.flac
 data/samples/*.m4a
+
+# Windsurf rules
+.windsurf/rules/*.md
+.windsurf/workflows/*.md

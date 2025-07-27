@@ -5,7 +5,7 @@
 groups = ["default", "rocm"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:992701fc5ff20000ac8391f07cd3781994f412ccc303b62d5c9154b3f685713e"
+content_hash = "sha256:3d603f48369b33428c42826afdc71178847928e445d6db35397bb9897da8b15a"
 
 [[metadata.targets]]
 requires_python = ">=3.10,<3.11"

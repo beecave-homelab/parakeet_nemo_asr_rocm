@@ -48,6 +48,7 @@ dependencies = [
   "whisper_normalizer",
   "nemo-toolkit[asr]>=2.4.0",
   "python-dotenv>=1.1.1",
+  "typer>=0.16.0",
 ]
 
 [project.optional-dependencies]
