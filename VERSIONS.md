@@ -4,13 +4,29 @@
 
 ## Table of Contents
 
-- [v0.2.0 (Current)](#v020-current---27-07-2025)
+- [v0.2.1 (Current)](#v021-current---27-07-2025)
+- [v0.2.0](#v020---27-07-2025)
 - [v0.1.1](#v011---27-07-2025)
 - [v0.1.0](#v010---26-07-2025)
 
 ---
 
-## **v0.2.0** (Current) - *27-07-2025*
+## **v0.2.1** (Current) - *27-07-2025*
+
+### 🐛 **Bug Fixes & Style Compliance**
+
+- **Fixed**: Resolved `Unexpected keyword argument` errors by standardizing on `chunk_len_sec` across `app.py` and `transcribe.py`.
+- **Fixed**: Corrected a `F841 Local variable ... is assigned to but never used` error in `transcribe.py`.
+- **Style**: Enforced strict coding standards across the entire codebase, including Google-style docstrings, PEP 8 compliance, absolute imports, and consistent type hinting.
+- **Style**: Corrected constant naming conventions in `utils/env_loader.py`.
+
+### 📝 **Key Commits in v0.2.1**
+
+`625c674`, `3477724`, `a4318c2`, `ec491be`, `766daea`
+
+---
+
+## **v0.2.0** - *27-07-2025*
 
 ### ✨ **New Features in v0.2.0**
 
@@ -30,7 +46,7 @@
 
 ---
 
-## **v0.1.1** (Current) - *27-07-2025*
+## **v0.1.1** - *27-07-2025*
 
 ### 🐛 **Bug Fix**
 

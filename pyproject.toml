@@ -1,6 +1,6 @@
 [project]
 name = "parakeet-nemo-asr-rocm"
-version = "0.2.0"
+version = "0.2.1"
 description = "ASR inference service for NVIDIA Parakeet-TDT 0.6B v2 on AMD ROCm GPUs"
 authors = [{ name = "elvee" }]
 requires-python = ">=3.10,<3.11"
@@ -56,6 +56,13 @@ rocm = [
   "torch==2.7.1",
   "torchaudio==2.7.1",
   "onnxruntime-rocm==1.21.0",
+]
+dev = [
+    "ruff>=0.12.5",
+    "isort>=6.0.1",
+    "pylint>=3.3.7",
+    "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
 ]
 
 [project.scripts]
