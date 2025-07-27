@@ -4,8 +4,29 @@
 
 ## Table of Contents
 
-- [v0.1.1 (Current)](#v011-current---27-07-2025)
+- [v0.2.0 (Current)](#v020-current---27-07-2025)
+- [v0.1.1](#v011---27-07-2025)
 - [v0.1.0](#v010---26-07-2025)
+
+---
+
+## **v0.2.0** (Current) - *27-07-2025*
+
+### ✨ **New Features in v0.2.0**
+
+- **Added**: Chunked inference support in `transcribe.py` for efficient long audio processing
+- **Added**: Project-level environment overrides and constants for flexible configuration
+- **Added**: Support for pydub in `audio_io.py` (broader audio format compatibility)
+- **Added**: Initial Parakeet NeMo ASR ROCm implementation
+
+### 🔧 **Improvements in v0.2.0**
+
+- **Refactored**: Codebase for flexibility, maintainability, and clearer environment variable handling
+- **Improved**: Documentation, configuration, and dependency management
+
+### 📝 **Key Commits in v0.2.0**
+
+`3477724`, `a4318c2`, `ec491be`, `766daea`, `8532a5f`
 
 ---
 
