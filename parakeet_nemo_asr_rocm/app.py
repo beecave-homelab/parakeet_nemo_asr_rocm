@@ -7,16 +7,13 @@ transcribe one or more WAV files. Internally delegates to
 This keeps runtime dependencies minimal (only argparse). CLI helpers are in
 ``cli.py`` which is exposed as a console_script via ``pyproject.toml``.
 """
+
 from __future__ import annotations
-
-# Load project-level environment overrides (e.g. PYTORCH_HIP_ALLOC_CONF) **before**
-# any heavy libraries are imported so they can pick up the flags.
-from .utils.env_loader import load_project_env
-
-load_project_env()
 
 import argparse
 import sys
+
+from .utils.constant import DEFAULT_CHUNK_LEN_SEC, DEFAULT_BATCH_SIZE
 from pathlib import Path
 from typing import Sequence
 
@@ -38,15 +35,25 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--batch-size",
         "-b",
         type=int,
-        default=1,
+        default=DEFAULT_BATCH_SIZE,
         help="Batch size for model inference.",
+    )
+    parser.add_argument(
+        "--chunk-len",
+        type=int,
+        default=DEFAULT_CHUNK_LEN_SEC,
+        help="Segment length in seconds for chunked inference (overridden by CHUNK_LEN_SEC env)",
     )
     return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str] | None = None) -> None:  # pragma: no cover
     args = _parse_args(argv)
-    transcripts = transcribe_paths(args.audio, batch_size=args.batch_size)
+    transcripts = transcribe_paths(
+        args.audio,
+        batch_size=args.batch_size,
+        chunk_len=args.chunk_len,
+    )
     for path, text in zip(args.audio, transcripts, strict=True):
         print(f"{path}: {text}")
 
