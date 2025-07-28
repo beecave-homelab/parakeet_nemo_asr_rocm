@@ -6,8 +6,6 @@ parakeet_nemo_asr_rocm.transcribe <audio files>``.
 
 from __future__ import annotations
 
-from __future__ import annotations
-
 from pathlib import Path
 from typing import Iterable, List, Sequence
 
@@ -15,10 +13,7 @@ import numpy as np
 import torch
 
 from parakeet_nemo_asr_rocm.models.parakeet import get_model
-from parakeet_nemo_asr_rocm.utils.audio_io import (
-    DEFAULT_SAMPLE_RATE,
-    load_audio,
-)
+from parakeet_nemo_asr_rocm.utils.audio_io import DEFAULT_SAMPLE_RATE, load_audio
 from parakeet_nemo_asr_rocm.utils.constant import DEFAULT_CHUNK_LEN_SEC
 
 __all__ = ["transcribe_paths"]
@@ -108,9 +103,3 @@ def transcribe_paths(
         idx += count
 
     return results
-
-
-
-
-
-
