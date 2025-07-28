@@ -4,7 +4,7 @@ Formatter for SubRip Subtitle format (.srt).
 
 import math
 
-from parakeet_nemo_asr_rocm.timestamps.adapt import AlignedResult, Segment
+from parakeet_nemo_asr_rocm.timestamps.models import AlignedResult
 
 
 def _format_timestamp(seconds: float) -> str:

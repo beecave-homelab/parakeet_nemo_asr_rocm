@@ -7,7 +7,7 @@ and registering it in the `FORMATTERS` dictionary.
 
 from typing import Callable, Dict
 
-from parakeet_nemo_asr_rocm.timestamps.adapt import AlignedResult
+from parakeet_nemo_asr_rocm.timestamps.models import AlignedResult
 
 from ._json import to_json
 from ._srt import to_srt
@@ -38,5 +38,7 @@ def get_formatter(format_name: str) -> Callable[[AlignedResult], str]:
     """
     formatter = FORMATTERS.get(format_name.lower())
     if not formatter:
-        raise ValueError(f"Unsupported format: '{format_name}'. Supported formats are: {list(FORMATTERS.keys())}")
+        raise ValueError(
+            f"Unsupported format: '{format_name}'. Supported formats are: {list(FORMATTERS.keys())}"
+        )
     return formatter

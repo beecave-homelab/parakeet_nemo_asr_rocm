@@ -2,7 +2,7 @@
 Formatter for plain text (.txt) output.
 """
 
-from parakeet_nemo_asr_rocm.timestamps.adapt import AlignedResult
+from parakeet_nemo_asr_rocm.timestamps.models import AlignedResult
 
 
 def to_txt(result: AlignedResult) -> str:

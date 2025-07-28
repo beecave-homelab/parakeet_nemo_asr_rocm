@@ -2,7 +2,7 @@
 Formatter for JSON (.json) output.
 """
 
-from parakeet_nemo_asr_rocm.timestamps.adapt import AlignedResult
+from parakeet_nemo_asr_rocm.timestamps.models import AlignedResult
 
 
 def to_json(result: AlignedResult) -> str:
