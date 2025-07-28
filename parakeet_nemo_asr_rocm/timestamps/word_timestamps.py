@@ -4,7 +4,6 @@ Module for extracting word-level timestamps from NeMo's model outputs.
 
 from typing import List
 
-import torch
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 
@@ -12,7 +11,9 @@ from .adapt import Word
 
 
 def get_word_timestamps(
-    hypotheses: List[Hypothesis], model: ASRModel, time_stride: float | None = None,
+    hypotheses: List[Hypothesis],
+    model: ASRModel,
+    time_stride: float | None = None,
 ) -> List[Word]:
     """
     Calculates word-level timestamps from a Transducer model's hypotheses.
@@ -32,9 +33,8 @@ def get_word_timestamps(
     # `SentencePieceTokenizer`.  Hence we detect word boundaries based on this
     # leading marker instead of relying on a dedicated space token.
 
-
     for hypo in hypotheses:
-        if not hasattr(hypo, 'y_sequence') or not hasattr(hypo, 'timestamp'):
+        if not hasattr(hypo, "y_sequence") or not hasattr(hypo, "timestamp"):
             continue
 
         # Get the token IDs from the hypothesis
@@ -56,13 +56,18 @@ def get_word_timestamps(
             time = timestamps[i] + getattr(hypo, "start_offset", 0.0)
 
             # Detect start of a new word. SentencePiece denotes it via leading '▁'.
-            is_word_start = token_text.startswith('▁')
+            is_word_start = token_text.startswith("▁")
 
             if is_word_start and current_word:
                 # Finish previous word
                 word_text = model.tokenizer.ids_to_text(current_word)
                 words_for_hypo.append(
-                    Word(word=word_text.lstrip('▁'), start=word_start_time, end=time, score=None)
+                    Word(
+                        word=word_text.lstrip("▁"),
+                        start=word_start_time,
+                        end=time,
+                        score=None,
+                    )
                 )
                 current_word = []
                 word_start_time = time  # new word starts now
@@ -71,13 +76,18 @@ def get_word_timestamps(
                 word_start_time = time
 
             current_word.append(token_id)
-        
+
         # Add the last word if any
         if current_word:
             word_text = model.tokenizer.ids_to_text(current_word)
             end_time = timestamps[-1] + getattr(hypo, "start_offset", 0.0)
             words_for_hypo.append(
-                Word(word=word_text.lstrip('▁'), start=word_start_time, end=end_time, score=None)
+                Word(
+                    word=word_text.lstrip("▁"),
+                    start=word_start_time,
+                    end=end_time,
+                    score=None,
+                )
             )
 
         all_words.extend(words_for_hypo)
