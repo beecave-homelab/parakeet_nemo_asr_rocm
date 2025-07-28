@@ -13,26 +13,26 @@ Features:
 """
 
 import pathlib
-from typing import Iterable, List, Optional, Sequence, Union
+import warnings
+from typing import Iterable, List, Sequence
 
 import numpy as np
 import torch
+import sys
+
 import typer
+# pylint: disable=import-error,unused-import
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from typing_extensions import Annotated
 
-from parakeet_nemo_asr_rocm.models.parakeet import get_model
-from parakeet_nemo_asr_rocm.utils.audio_io import (
-    DEFAULT_SAMPLE_RATE,
-    load_audio,
-)
-from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
-
 from parakeet_nemo_asr_rocm.formatting import get_formatter
-from parakeet_nemo_asr_rocm.timestamps.adapt import AlignedResult, Segment, Word, adapt_nemo_hypotheses
+from parakeet_nemo_asr_rocm.models.parakeet import get_model
+from parakeet_nemo_asr_rocm.timestamps.adapt import adapt_nemo_hypotheses
+from parakeet_nemo_asr_rocm.timestamps.models import AlignedResult, Segment
+from parakeet_nemo_asr_rocm.utils.audio_io import DEFAULT_SAMPLE_RATE, load_audio
 from parakeet_nemo_asr_rocm.utils.constant import DEFAULT_CHUNK_LEN_SEC
-
-import warnings
+from parakeet_nemo_asr_rocm.utils.file_utils import get_unique_filename
 
 # Create the main Typer application instance
 app = typer.Typer(
@@ -92,7 +92,12 @@ def _calc_time_stride(model, verbose: bool = False) -> float:
     # 2. Heuristically derive the encoder's total subsampling factor
     subsampling_factor = 1
     candidates = [
-        ("conv_subsampling", lambda enc: enc.conv_subsampling.get_stride() if hasattr(enc, "conv_subsampling") else None),
+        (
+            "conv_subsampling",
+            lambda enc: enc.conv_subsampling.get_stride()
+            if hasattr(enc, "conv_subsampling")
+            else None,
+        ),
         ("stride", lambda enc: getattr(enc, "stride", None)),
         ("subsampling_factor", lambda enc: getattr(enc, "subsampling_factor", None)),
         ("_stride", lambda enc: getattr(enc, "_stride", None)),
@@ -145,7 +150,9 @@ def transcribe(
     ],
     model_name: Annotated[
         str,
-        typer.Option("--model", help="Hugging Face Hub or local path to the NeMo ASR model."),
+        typer.Option(
+            "--model", help="Hugging Face Hub or local path to the NeMo ASR model."
+        ),
     ] = "nvidia/parakeet-tdt-0.6b-v2",
     output_dir: Annotated[
         pathlib.Path,
@@ -160,10 +167,14 @@ def transcribe(
         ),
     ] = "./output",
     output_format: Annotated[
-        str, typer.Option(help="Format for the output file(s) (e.g., txt, srt, vtt, json).")
+        str,
+        typer.Option(help="Format for the output file(s) (e.g., txt, srt, vtt, json)."),
     ] = "txt",
     output_template: Annotated[
-        str, typer.Option(help="Template for the output filename, e.g., '{filename}_{date}'.")
+        str,
+        typer.Option(
+            help="Template for the output filename, e.g., '{filename}_{date}'."
+        ),
     ] = "{filename}",
     batch_size: Annotated[
         int, typer.Option(help="Batch size for transcription inference.")
@@ -176,6 +187,13 @@ def transcribe(
         typer.Option(
             "--word-timestamps",
             help="Enable word-level timestamp generation.",
+        ),
+    ] = False,
+    overwrite: Annotated[
+        bool,
+        typer.Option(
+            "--overwrite",
+            help="Overwrite existing output files instead of appending numbered suffixes.",
         ),
     ] = False,
     verbose: Annotated[
@@ -204,7 +222,6 @@ def transcribe(
 
     # Eager-load model
     model = get_model(model_name)
-
 
     # Get the appropriate formatter function
     try:
@@ -254,30 +271,87 @@ def transcribe(
             # 3. Adapt and format the results
             if word_timestamps:
                 if not hypotheses:
-                    typer.echo(f"Warning: No transcription generated for {audio_path.name}", err=True)
+                    typer.echo(
+                        f"Warning: No transcription generated for {audio_path.name}",
+                        err=True,
+                    )
                     continue
-                
+
                 time_stride = _calc_time_stride(model, verbose)
                 aligned_result = adapt_nemo_hypotheses(hypotheses, model, time_stride)
             else:
                 # For non-timestamp formats, create a mock AlignedResult
                 if output_format not in ["txt", "json"]:
-                    typer.echo(f"Error: Format '{output_format}' requires word timestamps. Please use --word-timestamps.", err=True)
+                    typer.echo(
+                        f"Error: Format '{output_format}' requires word timestamps. Please use --word-timestamps.",
+                        err=True,
+                    )
                     raise typer.Exit(code=1)
-                
+
                 full_text = " ".join(transcribed_texts)
                 mock_segment = Segment(text=full_text, words=[], start=0, end=0)
-                aligned_result = AlignedResult(segments=[mock_segment], word_segments=[])
+                aligned_result = AlignedResult(
+                    segments=[mock_segment], word_segments=[]
+                )
+
+            if verbose and word_timestamps:
+                from parakeet_nemo_asr_rocm.utils.constant import (
+                    MAX_CPS,
+                    MAX_LINE_CHARS,
+                )
+
+                typer.echo("\n--- Subtitle Segments Debug ---")
+                for i, seg in enumerate(
+                    aligned_result.segments[:10]
+                ):  # show first 10 for brevity
+                    chars = len(seg.text.replace("\n", " "))
+                    dur = seg.end - seg.start
+                    cps = chars / max(dur, 1e-3)
+                    lines = seg.text.count("\n") + 1
+                    flag = "OK"
+                    if cps > MAX_CPS or any(
+                        len(line) > MAX_LINE_CHARS for line in seg.text.split("\n")
+                    ):
+                        flag = "⚠︎"
+                    typer.echo(
+                        f"Seg {i}: {chars} chars, {dur:.2f}s, {cps:.1f} cps, {lines} lines [{flag}] -> '{seg.text.replace(chr(10), ' | ')}'"
+                    )
+                typer.echo("------------------------------\n")
 
             formatted_text = formatter(aligned_result)
 
             # 4. Save the output
-            output_path = output_dir / f"{audio_path.stem}.{output_format.lower()}"
+            base_output_path = output_dir / f"{audio_path.stem}.{output_format.lower()}"
+            output_path = get_unique_filename(
+                base_output_path, overwrite=overwrite, separator="-"
+            )
             output_path.write_text(formatted_text)
 
-            if verbose:
-                typer.echo(f"  - Saved transcription for {audio_path.name} to {output_path}")
-            
+            # Post-process subtitles for readability if applicable
+            if output_format.lower() in {"srt", "vtt"} and word_timestamps:
+                try:
+                    from parakeet_nemo_asr_rocm.formatting.refine import SubtitleRefiner
+
+                    refiner = SubtitleRefiner()
+                    cues = refiner.load_srt(output_path)
+                    refined = refiner.refine(cues)
+                    refiner.save_srt(refined, output_path)
+                    if verbose:
+                        typer.echo(f"  · Refined subtitle timing/formatting for '{output_path.name}'.")
+                except Exception as exc:  # pragma: no cover – keep CLI robust
+                    typer.echo(f"Warning: subtitle refinement failed: {exc}", err=True)
+
+            action = (
+                "overwritten"
+                if overwrite
+                and output_path == base_output_path
+                and base_output_path.exists()
+                else "saved"
+            )
+            typer.echo(
+                f"  - {action.capitalize()} transcription for '{audio_path.resolve()}' to '{output_path.resolve()}'"
+            )
+
             progress.update(main_task, advance=1)
 
     typer.echo("\nTranscription complete.")

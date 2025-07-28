@@ -16,8 +16,10 @@ from pathlib import Path
 from typing import Sequence
 
 from parakeet_nemo_asr_rocm.transcribe import transcribe_paths
-from parakeet_nemo_asr_rocm.utils.constant import (DEFAULT_BATCH_SIZE,
-                                                   DEFAULT_CHUNK_LEN_SEC)
+from parakeet_nemo_asr_rocm.utils.constant import (
+    DEFAULT_BATCH_SIZE,
+    DEFAULT_CHUNK_LEN_SEC,
+)
 
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
