@@ -217,5 +217,9 @@ data/samples/*.m4a
 #.windsurf/rules/*.md
 #.windsurf/workflows/*.md
 
-output/
-output/*
+# output/
+output/*.txt
+output/*.srt
+output/*.json
+output/*.vtt
+.vscode/settings.json
