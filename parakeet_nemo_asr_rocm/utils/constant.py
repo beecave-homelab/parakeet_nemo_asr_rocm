@@ -25,7 +25,37 @@ DEFAULT_CHUNK_LEN_SEC: Final[int] = int(os.getenv("CHUNK_LEN_SEC", "20"))
 # Default batch size for model inference
 DEFAULT_BATCH_SIZE: Final[int] = int(os.getenv("BATCH_SIZE", "1"))
 
-# Caption segmentation thresholds (can be tuned via environment variables)
+# Subtitle readability constraints (industry-standard defaults)
+MAX_CPS: Final[float] = float(
+    os.getenv("MAX_CPS", "17")
+)  # characters per second upper bound
+MIN_CPS: Final[float] = float(
+    os.getenv("MIN_CPS", "12")
+)  # lower bound (rarely enforced)
+MAX_LINE_CHARS: Final[int] = int(os.getenv("MAX_LINE_CHARS", "42"))
+MAX_LINES_PER_BLOCK: Final[int] = int(os.getenv("MAX_LINES_PER_BLOCK", "2"))
+DISPLAY_BUFFER_SEC: Final[float] = float(
+    os.getenv("DISPLAY_BUFFER_SEC", "0.2")
+)  # trailing buffer after last word
+MAX_SEGMENT_DURATION_SEC: Final[float] = float(
+    os.getenv("MAX_SEGMENT_DURATION_SEC", "6.0")
+)
+MIN_SEGMENT_DURATION_SEC: Final[float] = float(
+    os.getenv("MIN_SEGMENT_DURATION_SEC", "1.0")
+)
+
+# Caption block character limits
+# Hard limit (two full lines using MAX_LINE_CHARS) unless overridden
+MAX_BLOCK_CHARS: Final[int] = int(
+    os.getenv(
+        "MAX_BLOCK_CHARS",
+        str(MAX_LINE_CHARS * MAX_LINES_PER_BLOCK),
+    )
+)
+# Softer limit used when evaluating potential merges; allows slight overflow
+MAX_BLOCK_CHARS_SOFT: Final[int] = int(os.getenv("MAX_BLOCK_CHARS_SOFT", "90"))
+
+# Legacy caption segmentation thresholds (kept for backward compatibility)
 SEGMENT_MAX_GAP_SEC: Final[float] = float(os.getenv("SEGMENT_MAX_GAP_SEC", "1.0"))
-SEGMENT_MAX_DURATION_SEC: Final[float] = float(os.getenv("SEGMENT_MAX_DURATION_SEC", "6.0"))
+SEGMENT_MAX_DURATION_SEC: Final[float] = MAX_SEGMENT_DURATION_SEC  # alias
 SEGMENT_MAX_WORDS: Final[int] = int(os.getenv("SEGMENT_MAX_WORDS", "40"))
