@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import shutil
 from pathlib import Path
 
 import pytest
@@ -61,4 +60,3 @@ def test_cli_srt_word_timestamps(tmp_path):
     first_lines = srt_files[0].read_text().splitlines()[:4]
     # Basic SRT structure check
     assert first_lines and first_lines[0].strip() == "1", "Invalid SRT format"
-
