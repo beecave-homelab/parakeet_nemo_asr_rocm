@@ -29,7 +29,9 @@ def _load_model(model_name: str) -> nemo_asr.models.ASRModel:
 
 
 @lru_cache(maxsize=4)
-def get_model(model_name: str = DEFAULT_MODEL_NAME) -> nemo_asr.models.ASRModel:  # pragma: no cover
+def get_model(
+    model_name: str = DEFAULT_MODEL_NAME,
+) -> nemo_asr.models.ASRModel:  # pragma: no cover
     """Lazily loads and returns a cached instance of the Parakeet ASR model.
 
     This function is decorated with `lru_cache` to ensure the model is loaded
