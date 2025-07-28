@@ -32,7 +32,8 @@ parakeet_nemo_asr_rocm/
 │   ├── transcribe.py           # Batch transcription helper
 │   ├── utils/
 │   │   ├── __init__.py
-│   │   └── audio_io.py         # WAV/PCM helpers
+│   │   ├── audio_io.py         # WAV/PCM helpers
+│   │   └── file_utils.py       # File naming and overwrite protection
 │   └── models/
 │       ├── __init__.py
 │       └── parakeet.py         # Model wrapper (load & cache)
@@ -47,7 +48,8 @@ parakeet_nemo_asr_rocm/
 │
 └── tests/
     ├── __init__.py
-    └── test_transcribe.py
+    ├── test_transcribe.py
+    └── test_file_utils.py      # Tests for file utilities
 ```
 
 ## Audio format support
@@ -85,6 +87,10 @@ docker compose up -d
 # Inside container
 $ docker exec -it parakeet-asr-rocm python -m parakeet_nemo_asr_rocm.transcribe /data/samples/sample.wav
 ```
+
+## File Overwrite Protection
+
+The CLI now includes automatic file overwrite protection. When transcribing audio files, output files are automatically renamed with numbered suffixes (e.g., `audio.txt`, `audio - 1.txt`, `audio - 2.txt`) to prevent accidental overwrites. Use the `--overwrite` flag to force overwriting existing files.
 
 ## Next steps / TODO
 
