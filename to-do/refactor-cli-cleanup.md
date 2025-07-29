@@ -23,12 +23,12 @@ This plan outlines the steps to finish refactoring the `parakeet_nemo_asr_rocm` 
   - [x] Improve caption length thresholds (completed)
     - Path: `parakeet_nemo_asr_rocm/timestamps/segmentation.py`
     - Action: Introduced `MAX_BLOCK_CHARS_SOFT` (90), minimum caption size guard, and stretched captions below `MIN_SEGMENT_DURATION_SEC` to the minimum.
-    - Status: Completed ✅
+    - Status: Completed
 
-  - [ ] Expose soft/hard block char limits via env vars
+  - [x] Expose soft/hard block char limits via env vars
     - Path: `utils/constant.py`, `.env.example`
-    - Action: Add `MAX_BLOCK_CHARS` (hard) and `MAX_BLOCK_CHARS_SOFT` (soft) with sensible defaults and document in `.env.example`.
-    - Status: Pending
+    - Action: Added `MAX_BLOCK_CHARS` (hard) and `MAX_BLOCK_CHARS_SOFT` (soft) with sensible defaults and documented in `.env.example`.
+    - Status: Completed
 
   - [x] Typer CLI skeleton & wiring (basic `typer.Typer` app, `transcribe` command).
     - Path: `parakeet_nemo_asr_rocm/cli_ty.py`
@@ -36,7 +36,7 @@ This plan outlines the steps to finish refactoring the `parakeet_nemo_asr_rocm` 
 
   - [x] Update project entry point to Typer main.
     - Path: `pyproject.toml`
-    - Status: Completed
+    - Status: Completed (2025-07-29) – renamed CLI script to `parakeet-rocm`
 
   - [x] Add basic progress reporting with `rich`.
     - Path: `parakeet_nemo_asr_rocm/cli_ty.py`
@@ -46,10 +46,10 @@ This plan outlines the steps to finish refactoring the `parakeet_nemo_asr_rocm` 
     - Path: `parakeet_nemo_asr_rocm/transcribe.py`
     - Status: Completed
 
-  - [ ] Implement long-audio processing (if custom approach chosen).
+  - [x] Implement long-audio processing (if custom approach chosen).
     - Path: `parakeet_nemo_asr_rocm/chunking/chunker.py`
     - Action: Create sliding-window chunker, offset & merge timestamps.
-    - Status: In progress
+    - Status: Completed (2025-07-29) – sliding-window chunker, timestamp offsetting, and duplicate-word merging implemented
 
   - [x] Add subtitle readability constraints (industry-standard SRT/VTT rules).
     - Path: `parakeet_nemo_asr_rocm/timestamps/adapt.py`, `utils/constant.py`, `.env.example`
@@ -77,28 +77,28 @@ This plan outlines the steps to finish refactoring the `parakeet_nemo_asr_rocm` 
            `MAX_SEGMENT_DURATION_SEC`, `MIN_SEGMENT_DURATION_SEC`, `DISPLAY_BUFFER_SEC`.
     - Status: Completed
 
-  - [ ] Refine sentence-boundary segmentation in subtitles. (completed)
+  - [/] Refine sentence-boundary segmentation in subtitles.
     - Path: `parakeet_nemo_asr_rocm/timestamps/adapt.py`
     - Action: Backtrack to nearest punctuation before limits and cut at clause boundaries. Prevented orphan words by tightening merge rules.
     - Status: In progress (validated on `voice-sample-13.srt`, but not working yet for `output/Exploring the Paranoid Country with 374142 Bunkers to Hide Everyone-2.srt`)
 
-  - [ ] Finalise `AlignedResult` model and converters.
+  - [x] Finalise `AlignedResult` model and converters.
     - Path: `parakeet_nemo_asr_rocm/timestamps/adapt.py`
-    - Action: Finish `nemo_to_aligned()` implementation.
-    - Status: In progress
+    - Action: Ensure `AlignedResult` fields stable, typed; confirm converters (`to_srt`, `to_vtt`, `to_json`, `to_txt`) consume it; added highlight‐free basic unit tests.
+    - Status: Completed (2025-07-29)
 
-  - [ ] Complete output formatters (`to_srt`, `to_vtt`, `to_json`, `to_txt`).
+  - [x] Complete output formatters (`to_srt`, `to_vtt`, `to_json`, `to_txt`).
     - Path: `parakeet_nemo_asr_rocm/formatting/`
     - Action: Render formatted strings, support `--highlight-words` in SRT/VTT.
-    - Status: In progress
+    - Status: Completed (2025-07-29) – added --highlight-words flag and formatter support
 
-  - [ ] Add precision flags.
-    - Path: `parakeet_nemo_asr_rocm/cli_ty.py`
+  - [x] Add precision flags.
+    - Path: `parakeet_nemo_asr_rocm/cli.py`
     - Action: Implement `--fp32` / `--fp16`, call `model.float()` / `model.half()`.
-    - Status: Pending
+    - Status: Completed (2025-07-29) – added validation, precision conversion, and verbose output
 
-- [ ] **Testing Phase:**
-  - [ ] Unit tests for formatting & chunking.
+- [x] **Testing Phase:**
+  - [x] Unit tests for formatting & chunking.
     - Path: `tests/unit/`
     - Action: `test_formatting.py`, `test_chunking.py`.
     - Accept Criteria: All unit tests pass.
