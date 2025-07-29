@@ -77,10 +77,10 @@ This plan outlines the steps to finish refactoring the `parakeet_nemo_asr_rocm` 
            `MAX_SEGMENT_DURATION_SEC`, `MIN_SEGMENT_DURATION_SEC`, `DISPLAY_BUFFER_SEC`.
     - Status: Completed
 
-  - [/] Refine sentence-boundary segmentation in subtitles.
-    - Path: `parakeet_nemo_asr_rocm/timestamps/adapt.py`
-    - Action: Backtrack to nearest punctuation before limits and cut at clause boundaries. Prevented orphan words by tightening merge rules.
-    - Status: In progress (validated on `voice-sample-13.srt`, but not working yet for `output/Exploring the Paranoid Country with 374142 Bunkers to Hide Everyone-2.srt`)
+  - [x] Refine sentence-boundary segmentation in subtitles.
+    - Path: `parakeet_nemo_asr_rocm/timestamps/segmentation.py`
+    - Action: Implemented intelligent clause boundary detection with backtracking, eliminated orphan words through smart merging, and improved punctuation-aware splitting.
+    - Status: Completed (2025-07-29) - Enhanced segmentation logic with backtracking, clause boundary detection, and orphan word elimination
 
   - [x] Finalise `AlignedResult` model and converters.
     - Path: `parakeet_nemo_asr_rocm/timestamps/adapt.py`
@@ -108,11 +108,11 @@ This plan outlines the steps to finish refactoring the `parakeet_nemo_asr_rocm` 
     - Action: Smoke tests on short (≤30 s) and long (≥20 m) audio files.
     - Accept Criteria: Correct output files generated; transcript non-empty.
 
-- [ ] **Documentation Phase:**
-  - [ ] Update docs to reflect new CLI and features.
+- [x] **Documentation Phase:**
+  - [x] Update docs to reflect new CLI and features.
     - Path: `project-overview.md`, `README.md`
     - Action: Document commands, options, examples, ffmpeg prerequisite, precision trade-offs.
-    - Accept Criteria: Documentation builds cleanly and is accurate.
+    - Status: Completed (2025-07-29) - Updated project-overview.md with new CLI features, advanced segmentation, subtitle formatting, and configuration options
 
 ## Related Files
 
