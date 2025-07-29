@@ -1,12 +1,14 @@
 [project]
 name = "parakeet-nemo-asr-rocm"
-version = "0.2.0"
+version = "0.2.2"
 description = "ASR inference service for NVIDIA Parakeet-TDT 0.6B v2 on AMD ROCm GPUs"
 authors = [{ name = "elvee" }]
 requires-python = ">=3.10,<3.11"
 
 # ---- NeMo requirements.txt ----
 dependencies = [
+    "typer[all]>=0.12.3",
+    "rich>=13.7.1,<14.0.0",
   "fsspec==2024.12.0",
   "huggingface_hub>=0.24",
   "numba",
@@ -49,6 +51,7 @@ dependencies = [
   "nemo-toolkit[asr]>=2.4.0",
   "python-dotenv>=1.1.1",
   "typer>=0.16.0",
+  "pydantic>=2.7.0",
 ]
 
 [project.optional-dependencies]
@@ -57,10 +60,17 @@ rocm = [
   "torchaudio==2.7.1",
   "onnxruntime-rocm==1.21.0",
 ]
+dev = [
+    "ruff>=0.12.5",
+    "isort>=6.0.1",
+    "pylint>=3.3.7",
+    "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
+]
 
 [project.scripts]
-parakeet-nemo-asr-rocm = "parakeet_nemo_asr_rocm.cli:main"
-transcribe = "parakeet_nemo_asr_rocm.transcribe:main"
+parakeet-rocm = "parakeet_nemo_asr_rocm.cli:app"
+
 
 [build-system]
 requires = ["hatchling"]
@@ -71,6 +81,21 @@ packages = ["parakeet_nemo_asr_rocm"]
 
 [tool.pdm]
 distribution = true
+
+# ------------------------------
+# Import sorting (isort)
+# Align isort behaviour with Ruff/Black so that clean_codebase.sh runs
+# `isort` without fighting the `ruff format` import ordering.
+# ------------------------------
+[tool.isort]
+profile = "black"         # same style Ruff uses
+line_length = 88           # match Black/Ruff default
+multi_line_output = 3      # Vertical hanging indent (black-compatible)
+include_trailing_comma = true
+force_grid_wrap = 0
+combine_as_imports = true
+skip_gitignore = true
+known_first_party = ["parakeet_nemo_asr_rocm"]
 
 [[tool.pdm.source]]
 name = "pypi"

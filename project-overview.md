@@ -1,4 +1,4 @@
-# Project Overview – parakeet_nemo_asr_rocm [![Version](https://img.shields.io/badge/Version-v0.2.0-informational)](./VERSIONS.md)
+# Project Overview – parakeet_nemo_asr_rocm [![Version](https://img.shields.io/badge/Version-v0.2.2-informational)](./VERSIONS.md)
 
 This repository provides a containerised, GPU-accelerated Automatic Speech Recognition (ASR) inference service for the NVIDIA **Parakeet-TDT 0.6B v2** model, running on **AMD ROCm** GPUs.
 
@@ -27,12 +27,25 @@ parakeet_nemo_asr_rocm/
 │
 ├── parakeet_nemo_asr_rocm/     # Python package
 │   ├── __init__.py
-│   ├── app.py                  # Module entry point (uvicorn/fastapi or CLI)
-│   ├── cli.py                  # Console-script entry
-│   ├── transcribe.py           # Batch transcription helper
+│   ├── cli.py                  # Typer-based CLI entry point with rich progress
+│   ├── transcribe.py           # Batch transcription with timestamp support
+│   ├── chunking/
+│   │   ├── __init__.py
+│   │   └── chunker.py          # Sliding-window chunker for long audio
+│   ├── timestamps/
+│   │   ├── __init__.py
+│   │   ├── adapt.py            # NeMo timestamp adaptation
+│   │   ├── segmentation.py     # Intelligent subtitle segmentation
+│   │   └── models.py           # Data models for aligned results
+│   ├── formatting/
+│   │   ├── __init__.py
+│   │   └── formatters.py       # SRT, VTT, JSON, TXT output formatters
 │   ├── utils/
 │   │   ├── __init__.py
-│   │   └── audio_io.py         # WAV/PCM helpers
+│   │   ├── audio_io.py         # WAV/PCM helpers
+│   │   ├── file_utils.py       # File naming and overwrite protection
+│   │   ├── constant.py         # Environment variables and constants
+│   │   └── env_loader.py       # Environment configuration loader
 │   └── models/
 │       ├── __init__.py
 │       └── parakeet.py         # Model wrapper (load & cache)
@@ -47,7 +60,8 @@ parakeet_nemo_asr_rocm/
 │
 └── tests/
     ├── __init__.py
-    └── test_transcribe.py
+    ├── test_transcribe.py
+    └── test_file_utils.py      # Tests for file utilities
 ```
 
 ## Audio format support
@@ -56,11 +70,23 @@ The service now accepts and automatically decodes **WAV, MP3, AAC, FLAC and MP4*
 
 ## Configuration & environment variables
 
-| Variable | Purpose | Default |
+| Variable | Default | Purpose |
 |----------|---------|---------|
-| `PYTORCH_HIP_ALLOC_CONF` | Mitigate ROCm GPU memory fragmentation | `expandable_segments:True` |
-| `NEUTRON_NUMBA_DISABLE_JIT` | Optionally disable Numba JIT to save VRAM | `1` |
-| `CHUNK_LEN_SEC` | Length (s) of audio chunks for segmented inference | `20` |
+| `DEFAULT_CHUNK_LEN_SEC` | `30` | Segment length for chunked transcription |
+| `DEFAULT_BATCH_SIZE` | `1` | Batch size for inference |
+| `MAX_LINE_CHARS` | `42` | Maximum characters per subtitle line |
+| `MAX_LINES_PER_BLOCK` | `2` | Maximum lines per subtitle block |
+| `MAX_CPS` | `17` | Maximum characters per second for reading speed |
+| `MAX_BLOCK_CHARS` | `84` | Hard character limit per subtitle block |
+| `MAX_BLOCK_CHARS_SOFT` | `90` | Soft character limit for merging segments |
+| `MIN_SEGMENT_DURATION_SEC` | `1.2` | Minimum subtitle display duration |
+| `MAX_SEGMENT_DURATION_SEC` | `5.5` | Maximum subtitle display duration |
+| `DISPLAY_BUFFER_SEC` | `0.2` | Additional display buffer after last word |
+| `PYTORCH_HIP_ALLOC_CONF` | `expandable_segments:True` | ROCm memory management |
+| `NEUTRON_NUMBA_DISABLE_JIT` | `1` | Optionally disable Numba JIT to save VRAM |
+| `CHUNK_LEN_SEC` | `20` | Length (s) of audio chunks for segmented inference |
+
+Copy `.env.example` → `.env` and adjust as needed.
 
 ## Key technology choices
 
@@ -83,12 +109,51 @@ $ docker compose build
 docker compose up -d
 
 # Inside container
-$ docker exec -it parakeet-asr-rocm python -m parakeet_nemo_asr_rocm.transcribe /data/samples/sample.wav
+$ docker exec -it parakeet-asr-rocm parakeet-rocm /data/samples/sample.wav
 ```
+
+## CLI Features
+
+### Commands
+
+- `transcribe`: Transcribe one or more audio files with rich progress reporting
+
+### Options
+
+- `--model`: Model name/path (default: nvidia/parakeet-tdt-0.6b-v2)
+- `--output-dir`: Output directory (default: ./output)
+- `--output-format`: Output format: txt, srt, vtt, json (default: txt)
+- `--batch-size`: Batch size for inference (default: 1)
+- `--chunk-len-sec`: Segment length for long audio (default: 30)
+- `--overlap-duration`: Overlap between chunks (default: 15)
+- `--word-timestamps`: Enable word-level timestamps
+- `--highlight-words`: Highlight words in SRT/VTT outputs
+- `--overwrite`: Overwrite existing files
+- `--verbose`: Enable verbose logging
+- `--fp32` / `--fp16`: Precision control for inference
+
+## Advanced Features
+
+### Long Audio Processing
+
+Automatic sliding-window chunking for audio files longer than 20 minutes with timestamp offsetting and duplicate-word merging.
+
+### Subtitle Readability
+
+Intelligent segmentation that respects:
+
+- Character limits (42 chars per line, 84 chars per block)
+- Reading speed (12-17 characters per second)
+- Natural clause boundaries with backtracking
+- Prevention of orphan words
+
+### File Overwrite Protection
+
+Automatic file renaming with numbered suffixes to prevent accidental overwrites. Use `--overwrite` to force replacement.
 
 ## Next steps / TODO
 
-1. Implement minimal package code (`app.py`, `cli.py`, etc.).
-2. Add helper scripts and sample data.
-3. Write tests and ensure CI passes.
-4. Update documentation when new features land.
+1. Add streaming transcription support (if feasible)
+2. Performance optimizations for very long audio
+3. Additional output format support
+4. Batch processing optimizations

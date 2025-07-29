@@ -12,19 +12,20 @@ Usage (call as soon as possible in your CLI / entry-point):
 
 Re-invocation is a no-op, so callers can safely call multiple times.
 """
+
 from __future__ import annotations
 
+import functools
 import os
 import pathlib
-import functools
 from typing import Final
 
 try:
     # `python-dotenv` provides load_dotenv helper. It is an optional dep – we
     # degrade gracefully if missing.
-    from dotenv import load_dotenv  # type: ignore
+    from dotenv import load_dotenv as LOAD_DOTENV  # type: ignore
 except ModuleNotFoundError:  # pragma: no cover
-    load_dotenv = None  # type: ignore
+    LOAD_DOTENV = None  # type: ignore
 
 
 _REPO_ROOT: Final[pathlib.Path] = pathlib.Path(__file__).resolve().parents[2]
@@ -35,11 +36,14 @@ _ENV_FILE: Final[pathlib.Path] = _REPO_ROOT / ".env"
 def load_project_env(force: bool = False) -> None:
     """Load the project-level `.env` file into the process environment.
 
-    Parameters
-    ----------
-    force:
-        Reload even if this function has already succeeded once (rarely
-        needed). When *True*, the internal LRU cache is bypassed.
+    This function is decorated with `lru_cache` to ensure it runs only once.
+    It attempts to load environment variables from a `.env` file at the
+    repository root. If `python-dotenv` is installed, it is used; otherwise,
+    a simple manual parser is used as a fallback.
+
+    Args:
+        force: If True, bypasses the cache and forces a reload of the
+            environment file. Defaults to False.
     """
     if force:
         load_project_env.cache_clear()  # type: ignore[attr-defined]
@@ -48,10 +52,10 @@ def load_project_env(force: bool = False) -> None:
         # Nothing to load – silently return.
         return
 
-    if load_dotenv is not None:
+    if LOAD_DOTENV is not None:
         # `override=False` ensures we do **not** clobber env-vars already set
         # by the user / shell.
-        load_dotenv(dotenv_path=_ENV_FILE, override=False)
+        LOAD_DOTENV(dotenv_path=_ENV_FILE, override=False)
     else:  # pragma: no cover
         # Manual fallback – parse simple KEY=VALUE lines.
         with _ENV_FILE.open("r", encoding="utf-8") as fp:
@@ -62,7 +66,7 @@ def load_project_env(force: bool = False) -> None:
                     continue
                 key, _, value = line.partition("=")
                 key = key.strip()
-                value = value.strip().strip("\"\'")
+                value = value.strip().strip("\"'")
                 os.environ.setdefault(key, value)
 
 
