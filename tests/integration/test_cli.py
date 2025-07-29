@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from parakeet_nemo_asr_rocm.cli_ty import app as cli_app
+from parakeet_nemo_asr_rocm.cli import app as cli_app
 
 # Path to sample audio for tests
 AUDIO_PATH = Path(__file__).parents[2] / "data" / "samples" / "sample.wav"
@@ -18,7 +18,7 @@ pytestmark = pytest.mark.skipif(
 
 def _invoke_cli(*args: str):
     """Utility to invoke the Typer CLI and return result."""
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
     return runner.invoke(cli_app, list(args))
 
 
@@ -27,7 +27,6 @@ def test_cli_txt(tmp_path):
     """Smoke-test CLI transcribe to TXT output without word timestamps."""
     outdir = tmp_path / "out"
     result = _invoke_cli(
-        "transcribe",
         str(AUDIO_PATH),
         "--output-dir",
         str(outdir),
@@ -46,7 +45,6 @@ def test_cli_srt_word_timestamps(tmp_path):
     """CLI should produce SRT when word timestamps enabled."""
     outdir = tmp_path / "out"
     result = _invoke_cli(
-        "transcribe",
         str(AUDIO_PATH),
         "--output-dir",
         str(outdir),
