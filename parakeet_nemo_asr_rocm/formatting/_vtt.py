@@ -15,7 +15,7 @@ def _format_timestamp(seconds: float) -> str:
     return f"{int(h):02d}:{int(m):02d}:{int(s):02d}.{int(math.modf(s)[0] * 1000):03d}"
 
 
-def to_vtt(result: AlignedResult) -> str:
+def to_vtt(result: AlignedResult, highlight_words: bool = False) -> str:
     """
     Converts AlignedResult to a VTT formatted string.
 
@@ -30,6 +30,10 @@ def to_vtt(result: AlignedResult) -> str:
         start_time = _format_timestamp(segment.start)
         end_time = _format_timestamp(segment.end)
         vtt_lines.append(f"{start_time} --> {end_time}")
-        vtt_lines.append(segment.text.strip())
+        if highlight_words:
+            text = " ".join(f"<c.highlight>{w.word}</c.highlight>" for w in segment.words)
+        else:
+            text = segment.text.strip()
+        vtt_lines.append(text)
         vtt_lines.append("")  # Add a blank line between entries
     return "\n".join(vtt_lines)

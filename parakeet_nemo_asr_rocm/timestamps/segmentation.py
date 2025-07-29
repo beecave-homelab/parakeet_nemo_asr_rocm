@@ -16,7 +16,6 @@ from parakeet_nemo_asr_rocm.utils.constant import (
     DISPLAY_BUFFER_SEC,
     MAX_CPS,
     MAX_LINE_CHARS,
-    MAX_LINES_PER_BLOCK,
     MAX_SEGMENT_DURATION_SEC,
     MIN_SEGMENT_DURATION_SEC,
     MAX_BLOCK_CHARS,

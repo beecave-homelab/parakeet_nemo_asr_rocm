@@ -92,4 +92,20 @@ def get_word_timestamps(
 
         all_words.extend(words_for_hypo)
 
-    return all_words
+    # Post-process to remove duplicates arising from overlapping chunks.
+    if not all_words:
+        return []
+
+    all_words.sort(key=lambda w: w.start)
+    deduped: List[Word] = []
+    last_end = -1.0
+    MIN_GAP = 0.03  # 30 ms tolerance for overlap
+
+    for w in all_words:
+        if w.start < last_end - MIN_GAP:
+            # This word is (almost) entirely contained in the previous window; skip it.
+            continue
+        deduped.append(w)
+        last_end = w.end
+
+    return deduped

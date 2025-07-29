@@ -28,6 +28,13 @@ from typing import List, Sequence
 # ---------------------------------------------------------------------------
 from parakeet_nemo_asr_rocm.utils import constant as _c  # pylint: disable=import-error
 
+BOUNDARY_CHARS = getattr(_c, "BOUNDARY_CHARS", ".?!…")
+CLAUSE_CHARS = getattr(_c, "CLAUSE_CHARS", ",;:")
+SOFT_BOUNDARY_WORDS = getattr(_c, "SOFT_BOUNDARY_WORDS", ("and", "but", "that"))
+INTERJECTION_WHITELIST = getattr(
+    _c, "INTERJECTION_WHITELIST", ("whoa", "wow", "what", "oh", "hey", "ah")
+)
+
 MAX_CPS: int = getattr(_c, "MAX_CPS", 17)
 MAX_LINE_CHARS: int = getattr(_c, "MAX_LINE_CHARS", 42)
 MIN_DUR: float = getattr(_c, "MIN_SEGMENT_DURATION_SEC", 1.0)
@@ -81,11 +88,13 @@ class SubtitleRefiner:
         gap_frames: int = GAP_FRAMES,
         fps: int = FPS,
         max_line_chars: int = MAX_LINE_CHARS,
+        max_lines_per_block: int = getattr(_c, "MAX_LINES_PER_BLOCK", 2),
     ) -> None:
         self.max_cps = max_cps
         self.min_dur = min_dur
         self.gap = gap_frames / fps
         self.max_line_chars = max_line_chars
+        self.max_lines_per_block = max_lines_per_block
         self.max_block_chars = getattr(_c, "MAX_BLOCK_CHARS", max_line_chars * 2)
         self.max_dur = getattr(_c, "MAX_SEGMENT_DURATION_SEC", 6.0)
 
@@ -141,6 +150,7 @@ class SubtitleRefiner:
             while i + 1 < len(cues):
                 nxt = cues[i + 1]
                 dur = current.end - current.start
+                interjection = _is_interjection(current.text)
                 cps = len(current.text.replace("\n", " ")) / max(dur, 1e-3)
                 gap = nxt.start - current.end
 
@@ -150,9 +160,14 @@ class SubtitleRefiner:
                 prospective_dur = prospective_end - current.start
 
                 if (
-                    (dur < self.min_dur or cps > self.max_cps or gap < self.gap)
+                    (
+                        (dur < self.min_dur and not interjection)
+                        or cps > self.max_cps
+                        or gap < self.gap
+                    )
                     and prospective_dur <= self.max_dur
                     and len(prospective_text) <= self.max_block_chars
+                    and _is_boundary(prospective_text)  # only merge if boundary reached
                 ):
                     # merge
                     current.end = prospective_end
@@ -165,16 +180,17 @@ class SubtitleRefiner:
         return merged
 
     def _enforce_gaps(self, cues: List[Cue]) -> List[Cue]:
+        """Ensure a minimum gap between consecutive cues by shifting timings."""
         for prev, curr in zip(cues, cues[1:]):
             required_start = prev.end + self.gap
             if curr.start < required_start:
-                # Shift forward
                 shift = required_start - curr.start
                 curr.start += shift
                 curr.end += shift
         return cues
 
     def _wrap_lines(self, cues: List[Cue]) -> List[Cue]:
+        """Wrap lines so that each line ≤ max_line_chars and ≤ max_lines_per_block."""
         wrapped_cues: list[Cue] = []
         for cue in cues:
             words = cue.text.replace("\n", " ").split()
@@ -189,23 +205,66 @@ class SubtitleRefiner:
                     line = [word]
             if line:
                 new_lines.append(" ".join(line))
-            # ensure at most 2 lines
-            if len(new_lines) > 2:
-                # simple fallback: join everything then smart-split in half
+            # Smarter split: prefer splitting at punctuation or soft boundary words
+            if len(new_lines) > self.max_lines_per_block:
                 joined = " ".join(words)
-                midpoint = len(joined) // 2
-                split_idx = joined.rfind(" ", 0, midpoint)
+                # try find punctuation near middle
+                mid = len(joined) // 2
+                punct_idx = max(
+                    joined.rfind(ch, 0, mid) for ch in BOUNDARY_CHARS + CLAUSE_CHARS
+                )
+                if punct_idx == -1:
+                    # try soft boundary word index
+                    for w in SOFT_BOUNDARY_WORDS:
+                        idx = joined.rfind(f" {w} ", 0, mid)
+                        if idx > punct_idx:
+                            punct_idx = idx + len(w) // 2
+                if punct_idx == -1:
+                    punct_idx = joined.rfind(" ", 0, mid)
+                    if punct_idx == -1:
+                        punct_idx = joined.find(" ", mid)
+                new_lines = [
+                    joined[:punct_idx].strip(),
+                    joined[punct_idx + 1 :].strip(),
+                ]
+            if len(new_lines) > self.max_lines_per_block:
+                joined = " ".join(words)
+                mid = len(joined) // 2
+                split_idx = joined.rfind(" ", 0, mid)
                 if split_idx == -1:
-                    split_idx = midpoint
-                new_lines = [joined[:split_idx].strip(), joined[split_idx:].strip()]
+                    split_idx = joined.find(" ", mid)
+                new_lines = [
+                    joined[:split_idx].strip(),
+                    joined[split_idx + 1 :].strip(),
+                ]
             cue.text = "\n".join(new_lines)
             wrapped_cues.append(cue)
         return wrapped_cues
 
 
+def _is_interjection(text: str) -> bool:
+    """Return True if *text* is a standalone interjection allowed to stay short."""
+    pure = re.sub(r"[^A-Za-z]", "", text).lower()
+    return pure in INTERJECTION_WHITELIST
+
+
+def _is_boundary(text: str) -> bool:
+    """Return True if *text* ends with a sentence/clause boundary."""
+    stripped = text.rstrip()
+    if not stripped:
+        return False
+    last = stripped[-1]
+    if last in BOUNDARY_CHARS or last in CLAUSE_CHARS:
+        return True
+    # Soft boundary word
+    last_word = stripped.split()[-1].lower().strip(",;:.")
+    return last_word in SOFT_BOUNDARY_WORDS
+
+
 # ---------------------------------------------------------------------------
 # Helper functions
 # ---------------------------------------------------------------------------
+
 
 def _parse_ts(ts: str) -> float:
     """Convert timestamp ``HH:MM:SS,mmm`` to seconds."""

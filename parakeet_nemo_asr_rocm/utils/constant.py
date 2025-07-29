@@ -38,10 +38,24 @@ DISPLAY_BUFFER_SEC: Final[float] = float(
     os.getenv("DISPLAY_BUFFER_SEC", "0.2")
 )  # trailing buffer after last word
 MAX_SEGMENT_DURATION_SEC: Final[float] = float(
-    os.getenv("MAX_SEGMENT_DURATION_SEC", "6.0")
+    os.getenv("MAX_SEGMENT_DURATION_SEC", "5.5")
 )
 MIN_SEGMENT_DURATION_SEC: Final[float] = float(
-    os.getenv("MIN_SEGMENT_DURATION_SEC", "1.0")
+    os.getenv("MIN_SEGMENT_DURATION_SEC", "1.2")
+)
+
+# Subtitle punctuation boundaries
+BOUNDARY_CHARS: Final[str] = os.getenv("BOUNDARY_CHARS", ".?!…")
+CLAUSE_CHARS: Final[str] = os.getenv("CLAUSE_CHARS", ",;:")
+
+# Soft boundary keywords (lowercase) treated as optional breakpoints
+SOFT_BOUNDARY_WORDS: Final[tuple[str, ...]] = tuple(
+    w.strip().lower() for w in os.getenv("SOFT_BOUNDARY_WORDS", "and,but,that,which,who,where,when,while,so").split(",")
+)
+
+# Interjection whitelist allowing stand-alone short cues
+INTERJECTION_WHITELIST: Final[tuple[str, ...]] = tuple(
+    w.strip().lower() for w in os.getenv("INTERJECTION_WHITELIST", "whoa,wow,what,oh,hey,ah").split(",")
 )
 
 # Caption block character limits

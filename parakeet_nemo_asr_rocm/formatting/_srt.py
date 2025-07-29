@@ -15,7 +15,7 @@ def _format_timestamp(seconds: float) -> str:
     return f"{int(h):02d}:{int(m):02d}:{int(s):02d},{int(math.modf(s)[0] * 1000):03d}"
 
 
-def to_srt(result: AlignedResult) -> str:
+def to_srt(result: AlignedResult, highlight_words: bool = False) -> str:
     """
     Converts AlignedResult to an SRT formatted string.
 
@@ -31,6 +31,11 @@ def to_srt(result: AlignedResult) -> str:
         end_time = _format_timestamp(segment.end)
         srt_lines.append(str(i))
         srt_lines.append(f"{start_time} --> {end_time}")
-        srt_lines.append(segment.text.strip())
+        if highlight_words:
+            # Bold each word for simple emphasis
+            text = " ".join(f"<b>{w.word}</b>" for w in segment.words)
+        else:
+            text = segment.text.strip()
+        srt_lines.append(text)
         srt_lines.append("")  # Add a blank line between entries
     return "\n".join(srt_lines)
