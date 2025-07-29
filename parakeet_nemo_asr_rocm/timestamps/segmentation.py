@@ -26,6 +26,142 @@ from parakeet_nemo_asr_rocm.utils.constant import (
 HARD_CHAR_LIMIT = MAX_BLOCK_CHARS
 SOFT_CHAR_LIMIT = MAX_BLOCK_CHARS_SOFT
 
+
+def _split_at_clause_boundaries(sentence: List[Word]) -> List[List[Word]]:
+    """Split a long sentence at clause boundaries using backtracking.
+
+    This function intelligently splits sentences that exceed limits by:
+    1. Identifying clause boundaries (commas, semicolons, colons)
+    2. Backtracking to find the best split point that maintains readability
+    3. Using fallback strategies when no good clause boundaries exist
+    """
+    if not sentence:
+        return []
+
+    # If already within limits, return as-is
+    if _respect_limits(sentence):
+        return [sentence]
+
+    # Find all potential clause boundaries
+    clause_boundaries = []
+    for i, word in enumerate(sentence):
+        # Check for clause-ending punctuation
+        if word.word.rstrip().endswith((",", ";", ":", "--", "—")):
+            # Look for natural break points around this punctuation
+            left_context = sentence[: i + 1]
+            right_context = sentence[i + 1 :]
+
+            # Only consider if both sides have meaningful content
+            left_text = " ".join(w.word for w in left_context).strip()
+            right_text = " ".join(w.word for w in right_context).strip()
+
+            if (
+                len(left_text) >= 10
+                and len(right_text) >= 10
+                and _respect_limits(left_context)
+            ):
+                clause_boundaries.append(i + 1)
+
+    # Try to split at clause boundaries
+    if clause_boundaries:
+        # Find the boundary closest to the middle for balanced splits
+        target_split = len(sentence) // 2
+        best_boundary = min(clause_boundaries, key=lambda x: abs(x - target_split))
+
+        left_split = sentence[:best_boundary]
+        right_split = sentence[best_boundary:]
+
+        # Recursively split both parts if needed
+        result = []
+        if left_split:
+            result.extend(_split_at_clause_boundaries(left_split))
+        if right_split:
+            result.extend(_split_at_clause_boundaries(right_split))
+        return result
+
+    # No clause boundaries found, use greedy fallback
+    return _greedy_split_fallback(sentence)
+
+
+def _greedy_split_fallback(sentence: List[Word]) -> List[List[Word]]:
+    """Fallback splitting strategy when no clause boundaries exist.
+
+    Uses a greedy approach to split at word boundaries while maintaining
+    readability constraints.
+    """
+    if not sentence:
+        return []
+
+    splits = []
+    current_chunk = [sentence[0]]
+
+    for word in sentence[1:]:
+        test_chunk = current_chunk + [word]
+        if _respect_limits(test_chunk):
+            current_chunk = test_chunk
+        else:
+            # Found a split point, but check if we can do better
+            # by looking for the last space within limits
+            if len(current_chunk) > 1:
+                splits.append(current_chunk)
+                current_chunk = [word]
+            else:
+                # Single word is too long, just add it
+                splits.append(current_chunk)
+                current_chunk = [word]
+
+    if current_chunk:
+        splits.append(current_chunk)
+
+    return splits
+
+
+def _eliminate_orphan_words(sentences: List[List[Word]]) -> List[List[Word]]:
+    """Post-process sentences to eliminate orphan words.
+
+    Prevents single words or very short phrases from appearing as separate
+    segments by intelligently merging them with adjacent segments.
+    """
+    if len(sentences) <= 1:
+        return sentences
+
+    processed = []
+    i = 0
+
+    while i < len(sentences):
+        current = sentences[i]
+        text = " ".join(w.word for w in current).strip()
+
+        # Check if this is an orphan (very short segment)
+        is_orphan = len(text) < 15 or len(current) <= 2 or len(text.split()) <= 1
+
+        if is_orphan and i > 0:
+            # Try to merge with previous sentence
+            previous = processed[-1]
+            combined = previous + current
+
+            if _respect_limits(combined):
+                processed[-1] = combined
+            else:
+                processed.append(current)
+        elif is_orphan and i == 0 and len(sentences) > 1:
+            # First segment is orphan, try to merge with next
+            next_segment = sentences[i + 1]
+            combined = current + next_segment
+
+            if _respect_limits(combined):
+                processed.append(combined)
+                i += 1  # Skip the next segment as it's merged
+            else:
+                processed.append(current)
+        else:
+            processed.append(current)
+
+        i += 1
+
+    return processed
+
+
 __all__ = [
     "split_lines",
     "segment_words",
@@ -37,7 +173,7 @@ def split_lines(text: str) -> str:
 
     Rules:
     1. Prefer a **balanced** break where both lines are <= ``MAX_LINE_CHARS``.
-    2. Reject break positions that leave either line *very* short (\<25 % of
+    2. Reject break positions that leave either line *very* short (<25 % of
        ``MAX_LINE_CHARS`` **or** fewer than 10 characters). This avoids
        captions that end with a dangling word such as ``"The"``.
     3. Fall back to a greedy split just before the limit if no balanced break
@@ -96,15 +232,55 @@ def _respect_limits(words: List[Word], *, soft: bool = False) -> bool:
 
 
 def _sentence_chunks(words: List[Word]) -> List[List[Word]]:
-    sent_acc: List[Word] = []
+    """Split words into sentences using strong punctuation, with clause boundary awareness.
+
+    This function implements intelligent sentence boundary detection that:
+    1. Identifies strong punctuation (., !, ?) as primary sentence boundaries
+    2. Uses clause boundaries (commas, semicolons, colons) for backtracking
+    3. Prevents orphan words by ensuring meaningful segments
+    4. Handles edge cases like trailing fragments
+    """
+    if not words:
+        return []
+
     sentences: List[List[Word]] = []
-    for w in words:
-        sent_acc.append(w)
-        if w.word.endswith((".", "!", "?")):
-            sentences.append(sent_acc)
-            sent_acc = []
-    if sent_acc:
-        sentences.append(sent_acc)
+    current_sentence: List[Word] = []
+
+    for i, word in enumerate(words):
+        current_sentence.append(word)
+
+        # Check for sentence-ending punctuation
+        if word.word.rstrip().endswith((".", "!", "?")):
+            # Only create a sentence if it's meaningful (not just punctuation)
+            if len(current_sentence) > 1 or not word.word.rstrip().endswith(
+                (".", "!", "?")
+            ):
+                sentences.append(current_sentence)
+                current_sentence = []
+
+    # Handle any remaining words as a final sentence
+    if current_sentence:
+        # If we have a very short trailing fragment, consider merging with previous
+        # but only if it makes sense linguistically
+        text = " ".join(w.word for w in current_sentence)
+        if len(text.strip()) < 10 and sentences:
+            # Check if we can merge without violating limits
+            last_sentence = sentences[-1]
+            combined_text = " ".join(w.word for w in last_sentence + current_sentence)
+            combined_duration = current_sentence[-1].end - last_sentence[0].start
+            combined_chars = len(combined_text)
+
+            # Only merge if it doesn't violate basic constraints
+            if (
+                combined_chars <= MAX_BLOCK_CHARS
+                and combined_duration <= MAX_SEGMENT_DURATION_SEC
+            ):
+                sentences[-1].extend(current_sentence)
+            else:
+                sentences.append(current_sentence)
+        else:
+            sentences.append(current_sentence)
+
     return sentences
 
 
@@ -122,34 +298,29 @@ def segment_words(words: List[Word]) -> List[Segment]:
     if not words:
         return []
 
-    # Sentence split and fix overly long sentences
+    # Sentence split and fix overly long sentences with intelligent backtracking
     sentences_fixed: List[List[Word]] = []
     for sentence in _sentence_chunks(words):
-        # Accept sentence immediately only if it isn't extremely short
-        if _respect_limits(sentence) and not (
-            len(" ".join(w.word for w in sentence)) < 15
-            and (sentence[-1].end - sentence[0].start) < 1.0
-        ):
+        text = " ".join(w.word for w in sentence)
+        duration = sentence[-1].end - sentence[0].start
+        char_count = len(text)
+
+        # Accept sentence immediately if it meets all constraints and isn't too short
+        if _respect_limits(sentence) and char_count >= 15 and duration >= 1.0:
             sentences_fixed.append(sentence)
             continue
-        # clause-level split
-        clause: List[Word] = []
-        for w in sentence:
-            clause.append(w)
-            if w.word.endswith((",", ";", ":")) and _respect_limits(clause):
-                sentences_fixed.append(clause)
-                clause = []
-        # greedy fallback on the remainder
-        if clause:
-            greedy: List[Word] = []
-            for w in clause:
-                if greedy and not _respect_limits(greedy + [w]):
-                    sentences_fixed.append(greedy)
-                    greedy = [w]
-                else:
-                    greedy.append(w)
-            if greedy:
-                sentences_fixed.append(greedy)
+
+        # For overly long sentences, use intelligent clause boundary detection
+        if char_count > HARD_CHAR_LIMIT or duration > MAX_SEGMENT_DURATION_SEC:
+            # First, try to split at clause boundaries with backtracking
+            clause_splits = _split_at_clause_boundaries(sentence)
+            sentences_fixed.extend(clause_splits)
+        else:
+            # Sentence is short enough but might be too brief - keep as-is
+            sentences_fixed.append(sentence)
+
+    # Post-process to eliminate orphan words
+    sentences_fixed = _eliminate_orphan_words(sentences_fixed)
 
     # Merge consecutive sentences when possible
     captions: List[List[Word]] = []

@@ -20,10 +20,10 @@ ENV_FILE: Final[pathlib.Path] = REPO_ROOT / ".env"
 
 # Default audio chunk length (seconds) used for streaming/segmented inference.
 # Can be overridden by setting CHUNK_LEN_SEC in the environment (e.g. in .env file).
-DEFAULT_CHUNK_LEN_SEC: Final[int] = int(os.getenv("CHUNK_LEN_SEC", "20"))
+DEFAULT_CHUNK_LEN_SEC: Final[int] = int(os.getenv("CHUNK_LEN_SEC", "300"))
 
 # Default batch size for model inference
-DEFAULT_BATCH_SIZE: Final[int] = int(os.getenv("BATCH_SIZE", "1"))
+DEFAULT_BATCH_SIZE: Final[int] = int(os.getenv("BATCH_SIZE", "12"))
 
 # Subtitle readability constraints (industry-standard defaults)
 MAX_CPS: Final[float] = float(
