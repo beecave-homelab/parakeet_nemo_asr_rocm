@@ -27,8 +27,7 @@ parakeet_nemo_asr_rocm/
 │
 ├── parakeet_nemo_asr_rocm/     # Python package
 │   ├── __init__.py
-│   ├── app.py                  # Module entry point (uvicorn/fastapi or CLI)
-│   ├── cli.py                  # Console-script entry
+│   ├── cli.py                  # Typer-based CLI entry point
 │   ├── transcribe.py           # Batch transcription helper
 │   ├── utils/
 │   │   ├── __init__.py
@@ -85,7 +84,7 @@ $ docker compose build
 docker compose up -d
 
 # Inside container
-$ docker exec -it parakeet-asr-rocm python -m parakeet_nemo_asr_rocm.transcribe /data/samples/sample.wav
+$ docker exec -it parakeet-asr-rocm parakeet-nemo-asr-rocm /data/samples/sample.wav
 ```
 
 ## File Overwrite Protection

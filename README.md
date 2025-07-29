@@ -39,24 +39,28 @@ make lock      # pdm lock && pdm export …
 pdm install -G rocm
 ```
 
- 
-
 ```bash
 # Run unit tests
 make test      # pytest -q
 
 # Transcribe a wav locally
-python -m parakeet_nemo_asr_rocm.app data/samples/sample.wav
+python -m parakeet_nemo_asr_rocm.cli data/samples/sample.wav
+
+# Or use the installed CLI script
+parakeet-rocm data/samples/sample.wav
+
+# With precision flags
+parakeet-rocm --fp16 data/samples/sample.wav  # Half precision for faster processing
+parakeet-rocm --fp32 data/samples/sample.wav  # Full precision (default)
 ```
 
  
 
 By default the waveform is split into 20-second segments before inference. Override globally by adding to `.env`:
 
-```env
+```makefile
 CHUNK_LEN_SEC=30  # or any value >0
 ```
-
 
 ## Troubleshooting
 
