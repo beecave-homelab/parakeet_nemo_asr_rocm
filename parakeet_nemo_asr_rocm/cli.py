@@ -14,7 +14,7 @@ Features:
 
 import pathlib
 import warnings
-from typing import Iterable, List, Sequence
+from typing import List
 
 import numpy as np
 import torch
@@ -25,12 +25,16 @@ from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from typing_extensions import Annotated
 
+from parakeet_nemo_asr_rocm.chunking.chunker import segment_waveform
 from parakeet_nemo_asr_rocm.formatting import get_formatter
 from parakeet_nemo_asr_rocm.models.parakeet import get_model
 from parakeet_nemo_asr_rocm.timestamps.adapt import adapt_nemo_hypotheses
 from parakeet_nemo_asr_rocm.timestamps.models import AlignedResult, Segment
 from parakeet_nemo_asr_rocm.utils.audio_io import DEFAULT_SAMPLE_RATE, load_audio
-from parakeet_nemo_asr_rocm.utils.constant import DEFAULT_CHUNK_LEN_SEC
+from parakeet_nemo_asr_rocm.utils.constant import (
+    DEFAULT_BATCH_SIZE,
+    DEFAULT_CHUNK_LEN_SEC,
+)
 from parakeet_nemo_asr_rocm.utils.file_utils import get_unique_filename
 
 # Create the main Typer application instance
@@ -39,36 +43,6 @@ app = typer.Typer(
     help="A CLI for transcribing audio files using NVIDIA Parakeet-TDT via NeMo on ROCm.",
     add_completion=False,
 )
-
-
-def _chunks(seq: Sequence, size: int) -> Iterable[Sequence]:
-    """Yield successive n-sized chunks from a sequence."""
-    for i in range(0, len(seq), size):
-        yield seq[i : i + size]
-
-
-# DEPRECATED: retained temporarily for API compatibility; use chunking.chunker.segment_waveform instead.
-def _segment_waveform(
-    wav: np.ndarray,
-    sr: int,
-    chunk_len_sec: int,
-    overlap_sec: int = 0,
-) -> List[tuple[np.ndarray, float]]:
-    """Split a mono waveform into chunks and return (segment, offset_seconds) tuples."""
-    if chunk_len_sec <= 0 or len(wav) == 0:
-        return [(wav, 0.0)]
-
-    step_samples = int(max(chunk_len_sec - overlap_sec, 1) * sr)
-    window_samples = int(chunk_len_sec * sr)
-
-    segments: list[tuple[np.ndarray, float]] = []
-    for start in range(0, len(wav), step_samples):
-        seg = wav[start : start + window_samples]
-        if seg.size == 0:
-            break
-        offset_sec = start / sr
-        segments.append((seg, offset_sec))
-    return segments
 
 
 def _calc_time_stride(model, verbose: bool = False) -> float:
@@ -102,9 +76,11 @@ def _calc_time_stride(model, verbose: bool = False) -> float:
     candidates = [
         (
             "conv_subsampling",
-            lambda enc: enc.conv_subsampling.get_stride()
-            if hasattr(enc, "conv_subsampling")
-            else None,
+            lambda enc: (
+                enc.conv_subsampling.get_stride()
+                if hasattr(enc, "conv_subsampling")
+                else None
+            ),
         ),
         ("stride", lambda enc: getattr(enc, "stride", None)),
         ("subsampling_factor", lambda enc: getattr(enc, "subsampling_factor", None)),
@@ -186,7 +162,7 @@ def transcribe(
     ] = "{filename}",
     batch_size: Annotated[
         int, typer.Option(help="Batch size for transcription inference.")
-    ] = 1,
+    ] = DEFAULT_BATCH_SIZE,
     chunk_len_sec: Annotated[
         int,
         typer.Option(help="Segment length in seconds for chunked transcription."),
@@ -294,13 +270,17 @@ def transcribe(
 
             # 1. Load and segment the audio file
             wav, _sr = load_audio(audio_path, DEFAULT_SAMPLE_RATE)
-            from parakeet_nemo_asr_rocm.chunking.chunker import segment_waveform
-
             segments = segment_waveform(wav, _sr, chunk_len_sec, overlap_duration)
 
             # 2. Transcribe all segments
             hypotheses: List[Hypothesis] = []
             transcribed_texts: List[str] = []
+
+            # Helper function for chunking sequences
+            def _chunks(seq, size):
+                """Yield successive n-sized chunks from a sequence."""
+                for i in range(0, len(seq), size):
+                    yield seq[i : i + size]
 
             for batch in _chunks(segments, batch_size):
                 batch_wavs = [seg for seg, _off in batch]
