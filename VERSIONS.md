@@ -4,14 +4,25 @@
 
 ## Table of Contents
 
-- [v0.2.1 (Current)](#v021-current---27-07-2025)
+- [v0.2.2 (Current)](#v022-current---28-07-2025)
+- [v0.2.1](#v021---27-07-2025)
 - [v0.2.0](#v020---27-07-2025)
 - [v0.1.1](#v011---27-07-2025)
 - [v0.1.0](#v010---26-07-2025)
 
 ---
 
-## **v0.2.1** (Current) - *27-07-2025*
+## **v0.2.2** (Current) - *28-07-2025*
+
+### ♻️ **Refactoring & Cleanup**
+
+- **Removed**: Obsolete segmentation helpers `_is_clause_boundary` and `_segment_words` from `timestamps/adapt.py`.
+- **Refactored**: Streamlined timestamp adaptation logic to use the new `segment_words` API exclusively.
+- **Documentation**: Enhanced README with detailed features and badges.
+
+---
+
+## **v0.2.1** - *27-07-2025*
 
 ### 🐛 **Bug Fixes & Style Compliance**
 

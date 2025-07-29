@@ -1,4 +1,4 @@
-# Project Overview – parakeet_nemo_asr_rocm [![Version](https://img.shields.io/badge/Version-v0.2.1-informational)](./VERSIONS.md)
+# Project Overview – parakeet_nemo_asr_rocm [![Version](https://img.shields.io/badge/Version-v0.2.2-informational)](./VERSIONS.md)
 
 This repository provides a containerised, GPU-accelerated Automatic Speech Recognition (ASR) inference service for the NVIDIA **Parakeet-TDT 0.6B v2** model, running on **AMD ROCm** GPUs.
 
