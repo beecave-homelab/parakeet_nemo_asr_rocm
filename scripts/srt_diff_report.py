@@ -18,11 +18,12 @@ Requires only the Python standard library.
 
 from __future__ import annotations
 
-import typer
 import statistics as stats
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Sequence
+
+import typer
 
 _TIME_SPLITTER = " --> "
 

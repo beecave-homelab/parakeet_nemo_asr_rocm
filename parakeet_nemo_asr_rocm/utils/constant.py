@@ -50,12 +50,16 @@ CLAUSE_CHARS: Final[str] = os.getenv("CLAUSE_CHARS", ",;:")
 
 # Soft boundary keywords (lowercase) treated as optional breakpoints
 SOFT_BOUNDARY_WORDS: Final[tuple[str, ...]] = tuple(
-    w.strip().lower() for w in os.getenv("SOFT_BOUNDARY_WORDS", "and,but,that,which,who,where,when,while,so").split(",")
+    w.strip().lower()
+    for w in os.getenv(
+        "SOFT_BOUNDARY_WORDS", "and,but,that,which,who,where,when,while,so"
+    ).split(",")
 )
 
 # Interjection whitelist allowing stand-alone short cues
 INTERJECTION_WHITELIST: Final[tuple[str, ...]] = tuple(
-    w.strip().lower() for w in os.getenv("INTERJECTION_WHITELIST", "whoa,wow,what,oh,hey,ah").split(",")
+    w.strip().lower()
+    for w in os.getenv("INTERJECTION_WHITELIST", "whoa,wow,what,oh,hey,ah").split(",")
 )
 
 # Caption block character limits

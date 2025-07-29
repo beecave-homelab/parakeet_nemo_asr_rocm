@@ -14,12 +14,12 @@ from typing import List
 from parakeet_nemo_asr_rocm.timestamps.models import Segment, Word
 from parakeet_nemo_asr_rocm.utils.constant import (
     DISPLAY_BUFFER_SEC,
+    MAX_BLOCK_CHARS,
+    MAX_BLOCK_CHARS_SOFT,
     MAX_CPS,
     MAX_LINE_CHARS,
     MAX_SEGMENT_DURATION_SEC,
     MIN_SEGMENT_DURATION_SEC,
-    MAX_BLOCK_CHARS,
-    MAX_BLOCK_CHARS_SOFT,
 )
 
 # Hard and soft limits

@@ -18,8 +18,8 @@ from typing import Iterable, List, Sequence
 
 import numpy as np
 import torch
-
 import typer
+
 # pylint: disable=import-error,unused-import
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
@@ -321,7 +321,7 @@ def transcribe(
                         hypotheses.extend(results)
                     else:
                         # Extract text from results - handle both string and Hypothesis cases
-                        if results and hasattr(results[0], 'text'):
+                        if results and hasattr(results[0], "text"):
                             # Results are Hypothesis objects
                             texts = [hyp.text for hyp in results]
                         else:
@@ -380,7 +380,9 @@ def transcribe(
                 typer.echo("------------------------------\n")
 
             if output_format.lower() in {"srt", "vtt"}:
-                formatted_text = formatter(aligned_result, highlight_words=highlight_words)
+                formatted_text = formatter(
+                    aligned_result, highlight_words=highlight_words
+                )
             else:
                 formatted_text = formatter(aligned_result)
 
@@ -401,7 +403,9 @@ def transcribe(
                     refined = refiner.refine(cues)
                     refiner.save_srt(refined, output_path)
                     if verbose:
-                        typer.echo(f"  · Refined subtitle timing/formatting for '{output_path.name}'.")
+                        typer.echo(
+                            f"  · Refined subtitle timing/formatting for '{output_path.name}'."
+                        )
                 except Exception as exc:  # pragma: no cover – keep CLI robust
                     typer.echo(f"Warning: subtitle refinement failed: {exc}", err=True)
 
@@ -419,6 +423,7 @@ def transcribe(
             progress.update(main_task, advance=1)
 
     typer.echo("\nTranscription complete.")
+
 
 if __name__ == "__main__":
     app()

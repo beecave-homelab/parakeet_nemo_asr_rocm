@@ -31,7 +31,9 @@ def to_vtt(result: AlignedResult, highlight_words: bool = False) -> str:
         end_time = _format_timestamp(segment.end)
         vtt_lines.append(f"{start_time} --> {end_time}")
         if highlight_words:
-            text = " ".join(f"<c.highlight>{w.word}</c.highlight>" for w in segment.words)
+            text = " ".join(
+                f"<c.highlight>{w.word}</c.highlight>" for w in segment.words
+            )
         else:
             text = segment.text.strip()
         vtt_lines.append(text)

@@ -7,6 +7,7 @@ Further merge helpers will be added in follow-up iterations.
 The logic is intentionally kept free of any NeMo or torch imports so that it
 can be reused for offline testing without GPU dependencies.
 """
+
 from __future__ import annotations
 
 from typing import List, Tuple
