@@ -16,8 +16,14 @@ from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 
 from parakeet_nemo_asr_rocm.timestamps.models import AlignedResult, Segment, Word
 from parakeet_nemo_asr_rocm.timestamps.segmentation import segment_words, split_lines
-
-from .word_timestamps import get_word_timestamps
+from parakeet_nemo_asr_rocm.timestamps.word_timestamps import get_word_timestamps
+from parakeet_nemo_asr_rocm.utils.constant import (
+    MAX_CPS,
+    MAX_LINE_CHARS,
+    MAX_LINES_PER_BLOCK,
+    MAX_SEGMENT_DURATION_SEC,
+    MIN_SEGMENT_DURATION_SEC,
+)
 
 
 def adapt_nemo_hypotheses(
@@ -33,125 +39,10 @@ def adapt_nemo_hypotheses(
     # ---------------------------------------------
     # Readability-aware segmentation implementation
     # ---------------------------------------------
-    from parakeet_nemo_asr_rocm.utils.constant import (
-        DISPLAY_BUFFER_SEC,
-        MAX_CPS,
-        MAX_LINE_CHARS,
-        MAX_LINES_PER_BLOCK,
-        MAX_SEGMENT_DURATION_SEC,
-        MIN_SEGMENT_DURATION_SEC,
-    )
-
     MAX_BLOCK_CHARS = MAX_LINE_CHARS * MAX_LINES_PER_BLOCK
 
     # Use new sentence-aware segmentation implementation
     segments_raw = segment_words(word_timestamps)
-
-    def _is_clause_boundary(word: Word) -> bool:
-        """Return True if *word* ends with punctuation that signals a clause break."""
-        return word.word.endswith((",", ";", ":", ".", "?", "!"))
-
-    def _segment_words(words: list[Word]) -> list[Segment]:
-        """(Deprecated) Wrapper forwarding to new segmentation module."""
-        return segment_words(words)
-        """LEGACY SEGMENTATION CODE BELOW (disabled)"""
-        """Segment *words* into readability-compliant caption blocks following
-        a sentence-first strategy.
-
-        Steps:
-        1. Split the word list into *sentences* ending with strong punctuation
-           (., !, ?). If a sentence itself violates hard limits, back-off to
-           clause boundaries (commas / semicolons). If still too long, fall
-           back to greedy word grouping respecting the limits.
-        2. Combine consecutive sentences into a caption while combined text
-           still obeys all limits (chars, CPS, duration).
-        """
-
-        if not words:
-            return []
-
-        def _sentence_chunks(ws: list[Word]) -> list[list[Word]]:
-            sent_acc: list[Word] = []
-            sents: list[list[Word]] = []
-            for w in ws:
-                sent_acc.append(w)
-                if w.word.endswith((".", "!", "?")):
-                    sents.append(sent_acc)
-                    sent_acc = []
-            # leftover
-            if sent_acc:
-                sents.append(sent_acc)
-            return sents
-
-        def _respect_limits(wlist: list[Word]) -> bool:
-            txt = " ".join(w.word for w in wlist)
-            chars = len(txt)
-            dur = wlist[-1].end - wlist[0].start
-            cps = chars / max(dur, 1e-3)
-            return (
-                chars <= MAX_BLOCK_CHARS
-                and dur <= MAX_SEGMENT_DURATION_SEC
-                and cps <= MAX_CPS
-            )
-
-        # 1. initial sentence split
-        sentences = _sentence_chunks(words)
-
-        # 1b. back-off: fix sentences that break limits
-        fixed_sentences: list[list[Word]] = []
-        for s in sentences:
-            if _respect_limits(s):
-                fixed_sentences.append(s)
-                continue
-            # try clause split by ',' ';'
-            clause: list[Word] = []
-            for w in s:
-                clause.append(w)
-                if w.word.endswith((",", ";", ":")) and _respect_limits(clause):
-                    fixed_sentences.append(clause)
-                    clause = []
-            # add remainder greedily
-            if clause:
-                # fallback: greedy chunk obeying limits
-                greedy: list[Word] = []
-                for w in clause:
-                    if greedy and not _respect_limits(greedy + [w]):
-                        fixed_sentences.append(greedy)
-                        greedy = [w]
-                    else:
-                        greedy.append(w)
-                if greedy:
-                    fixed_sentences.append(greedy)
-        sentences = fixed_sentences
-
-        # 2. build captions by merging sentences while within limits
-        captions: list[list[Word]] = []
-        current: list[Word] = []
-        for sent in sentences:
-            if not current:
-                current = sent
-                continue
-            if _respect_limits(current + sent):
-                current += sent
-            else:
-                captions.append(current)
-                current = sent
-        if current:
-            captions.append(current)
-
-        # Convert to Segment dataclass list
-        result: list[Segment] = []
-        for cap in captions:
-            text_plain = " ".join(w.word for w in cap)
-            result.append(
-                Segment(
-                    text=split_lines(text_plain),
-                    words=cap,
-                    start=cap[0].start,
-                    end=cap[-1].end + DISPLAY_BUFFER_SEC,
-                )
-            )
-        return result
 
     # Post-processing adjustments
     # -----------------------------
