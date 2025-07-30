@@ -130,6 +130,8 @@ $ docker exec -it parakeet-asr-rocm parakeet-rocm /data/samples/sample.wav
 - `--highlight-words`: Highlight words in SRT/VTT outputs
 - `--overwrite`: Overwrite existing files
 - `--verbose`: Enable verbose logging
+- `--quiet`: Suppress console output except progress bar
+- `--no-progress`: Disable the Rich progress bar while still showing created file paths (combine with `--quiet` for fully silent operation)
 - `--fp32` / `--fp16`: Precision control for inference
 
 ## Advanced Features
