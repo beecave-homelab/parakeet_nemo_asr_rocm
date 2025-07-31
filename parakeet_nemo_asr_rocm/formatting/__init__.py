@@ -9,8 +9,11 @@ from typing import Callable, Dict
 
 from parakeet_nemo_asr_rocm.timestamps.models import AlignedResult
 
+from ._csv import to_csv
 from ._json import to_json
+from ._jsonl import to_jsonl
 from ._srt import to_srt
+from ._tsv import to_tsv
 from ._txt import to_txt
 from ._vtt import to_vtt
 
@@ -18,6 +21,9 @@ from ._vtt import to_vtt
 FORMATTERS: Dict[str, Callable[[AlignedResult], str]] = {
     "txt": to_txt,
     "json": to_json,
+    "jsonl": to_jsonl,
+    "csv": to_csv,
+    "tsv": to_tsv,
     "srt": to_srt,
     "vtt": to_vtt,
 }
