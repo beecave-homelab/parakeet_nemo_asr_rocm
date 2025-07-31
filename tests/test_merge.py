@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from parakeet_nemo_asr_rocm.merge import (
+from parakeet_nemo_asr_rocm.chunking import (
     merge_longest_common_subsequence,
     merge_longest_contiguous,
 )
