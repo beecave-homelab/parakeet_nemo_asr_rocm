@@ -7,7 +7,7 @@ from typing import List
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 
-from .adapt import Word
+from parakeet_nemo_asr_rocm.timestamps.models import Word
 
 
 def get_word_timestamps(
