@@ -3,23 +3,85 @@
 Designed to be imported *and* run as a script via ``python -m
 parakeet_nemo_asr_rocm.transcribe <audio files>``.
 """
-
 # pylint: disable=import-outside-toplevel, multiple-imports
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
-from typing import List, Sequence
+from typing import List, Literal, Sequence, Tuple, Union
 
 import numpy as np
 import torch
 
-from parakeet_nemo_asr_rocm.chunking.chunker import segment_waveform
+from parakeet_nemo_asr_rocm.chunking import (
+    merge_longest_common_subsequence,
+    merge_longest_contiguous,
+    segment_waveform,
+)
 from parakeet_nemo_asr_rocm.models.parakeet import get_model
+from parakeet_nemo_asr_rocm.timestamps.models import Word
+from parakeet_nemo_asr_rocm.timestamps.word_timestamps import get_word_timestamps
 from parakeet_nemo_asr_rocm.utils.audio_io import DEFAULT_SAMPLE_RATE, load_audio
 from parakeet_nemo_asr_rocm.utils.constant import DEFAULT_CHUNK_LEN_SEC
 
 __all__ = ["transcribe_paths", "cli_transcribe"]
+
+
+def _transcribe_chunks(
+    model,
+    chunks: List[Tuple[np.ndarray, float]],
+    batch_size: int = 1,
+    word_timestamps: bool = False,
+) -> Tuple[List[str], List[List[Word]]]:
+    """Transcribe audio chunks and return both text and word timestamps.
+
+    Args:
+        model: The ASR model to use for transcription.
+        chunks: List of (audio_chunk, offset) tuples where offset is in seconds.
+        batch_size: Number of chunks to process in each batch.
+        word_timestamps: Whether to include word-level timestamps.
+
+    Returns:
+        A tuple of (texts, words_list) where:
+        - texts: List of transcribed text strings
+        - words_list: List of Word objects with timing information
+    """
+    # Separate chunks and their offsets
+    chunk_audio = [chunk for chunk, _ in chunks]
+    chunk_offsets = [offset for _, offset in chunks]
+
+    # Helper for batching
+    def _batch(seq, size):
+        for i in range(0, len(seq), size):
+            yield seq[i : i + size]
+
+    texts = []
+    words_list = []
+
+    # Process in batches
+    for batch_idx, batch_chunks in enumerate(_batch(chunk_audio, batch_size)):
+        with torch.inference_mode():
+            batch_results = model.transcribe(batch_chunks, batch_size=len(batch_chunks))
+
+            for result in batch_results:
+                # Get text and words
+                text = result.text if hasattr(result, "text") else str(result)
+                words = getattr(result, "words", None) if word_timestamps else None
+
+                # Apply offset to word timings if available
+                if words and batch_idx < len(chunk_offsets):
+                    offset = chunk_offsets[batch_idx]
+                    for word in words:
+                        word.start += offset
+                        word.end += offset
+
+                texts.append(text)
+                words_list.append(words or [])
+
+                batch_idx += 1
+
+    return texts, words_list
 
 
 def _calc_time_stride(model, verbose: bool = False) -> float:
@@ -101,6 +163,7 @@ def cli_transcribe(
     overlap_duration: int = 15,
     highlight_words: bool = False,
     word_timestamps: bool = False,
+    merge_strategy: str = "lcs",
     overwrite: bool = False,
     verbose: bool = False,
     quiet: bool = False,
@@ -293,8 +356,179 @@ def cli_transcribe(
                     )
                     continue
 
+                # First, let adapt_nemo_hypotheses process all hypotheses to get word timestamps
                 time_stride = _calc_time_stride(model, verbose)
+                if verbose:
+                    typer.echo("\n" + "=" * 80)
+                    typer.echo("CHUNK MERGING DIAGNOSTICS")
+                    typer.echo("=" * 80)
+                    typer.echo(f"• Processing {len(hypotheses)} audio chunks")
+                    typer.echo(f"• Merge strategy: {merge_strategy.upper()}")
+                    typer.echo(f"• Time stride: {time_stride:.6f} seconds")
+                    typer.echo(f"• Overlap duration: {overlap_duration:.3f}s")
+
                 aligned_result = adapt_nemo_hypotheses(hypotheses, model, time_stride)
+
+                # If we have multiple chunks and merging is requested, apply the merge strategy
+                if merge_strategy != "none" and len(hypotheses) > 1:
+                    # --- Pairwise chunk merging (streaming path) ---
+                    performed_merge = False
+                    # Build per-chunk word lists from individual hypotheses
+                    chunk_word_lists: list[list[Word]] = [
+                        get_word_timestamps([h], model, time_stride) for h in hypotheses
+                    ]
+
+                    if verbose:
+                        typer.echo("\n[MERGE] Pairwise merging of chunk word lists")
+                        typer.echo(f"• Total chunks: {len(chunk_word_lists)}")
+
+                    # Iteratively merge chunks
+                    merged_words: list[Word] = chunk_word_lists[0]
+                    for idx in range(1, len(chunk_word_lists)):
+                        next_words = chunk_word_lists[idx]
+
+                        if merge_strategy == "contiguous":
+                            merged_words = merge_longest_contiguous(
+                                merged_words,
+                                next_words,
+                                overlap_duration=overlap_duration,
+                            )
+                        else:  # "lcs" and any other value defaults to LCS
+                            merged_words = merge_longest_common_subsequence(
+                                merged_words,
+                                next_words,
+                                overlap_duration=overlap_duration,
+                            )
+
+                    performed_merge = True
+
+                    # Post-process merged words: deduplicate and rebuild segments
+                    from parakeet_nemo_asr_rocm.timestamps.segmentation import segment_words
+
+                    deduped: list[Word] = []
+                    for w in merged_words:
+                        # Skip immediate duplicates occurring within 200 ms
+                        if deduped and w.word == deduped[-1].word and (w.start - deduped[-1].start) < 0.2:
+                            continue
+                        deduped.append(w)
+
+                    merged_words = deduped
+
+                    # Update aligned_result with cleaned word list and new segments
+                    aligned_result.word_segments = merged_words
+                    aligned_result.segments = segment_words(merged_words)
+
+                    if verbose:
+                        pre_merge_count = sum(len(c) for c in chunk_word_lists)
+                        reduction = (
+                            (pre_merge_count - len(merged_words))
+                            / pre_merge_count
+                            * 100.0
+                            if pre_merge_count
+                            else 0.0
+                        )
+                        typer.echo("\n[MERGE SUMMARY]")
+                        typer.echo(f"• Words before: {pre_merge_count:,}")
+                        typer.echo(f"• Words after:  {len(merged_words):,}")
+                        typer.echo(f"• Reduction:    {reduction:.1f}%")
+                    if hasattr(aligned_result, "word_segments") and not performed_merge:
+                        words = aligned_result.word_segments
+
+                        if verbose and words:
+                            typer.echo("\n[PRE-MERGE ANALYSIS]")
+                            typer.echo(f"• Total words: {len(words):,}")
+                            typer.echo(
+                                f"• Time range: {words[0].start:.2f}s - {words[-1].end:.2f}s (duration: {words[-1].end - words[0].start:.2f}s)"
+                            )
+
+                            # Calculate word density
+                            duration = words[-1].end - words[0].start
+                            words_per_sec = len(words) / duration if duration > 0 else 0
+                            typer.echo(
+                                f"• Word density: {words_per_sec:.1f} words/second"
+                            )
+
+                            # Show sample of words with timestamps
+                            sample = " | ".join(
+                                f"{w.word} ({w.start:.2f}-{w.end:.2f}s)"
+                                for w in words[:3]
+                            )
+                            if len(words) > 3:
+                                sample += " | ..."
+                            typer.echo(f"• Sample: {sample}")
+
+                        # Sort words by start time
+                        words_sorted = sorted(words, key=lambda w: w.start)
+
+                        # Apply merge strategy if we have words to merge
+                        if len(words_sorted) > 1:
+                            if verbose:
+                                typer.echo("\n[APPLYING MERGE STRATEGY]")
+                                typer.echo(f"• Strategy: {merge_strategy.upper()}")
+                                start_time = time.time()
+
+                            if merge_strategy == "contiguous":
+                                merged_words = merge_longest_contiguous(
+                                    words_sorted, [], overlap_duration=overlap_duration
+                                )
+                            else:  # Default to 'lcs' for any other value
+                                merged_words = merge_longest_common_subsequence(
+                                    words_sorted, [], overlap_duration=overlap_duration
+                                )
+
+                            if verbose:
+                                merge_time = time.time() - start_time
+                                typer.echo("\n[POST-MERGE RESULTS]")
+                                typer.echo(
+                                    f"• Merge completed in {merge_time * 1000:.1f}ms"
+                                )
+
+                                # Show before/after comparison
+                                typer.echo(f"• Words before: {len(words_sorted):,}")
+                                typer.echo(f"• Words after:  {len(merged_words):,}")
+
+                                if merged_words:
+                                    # Calculate reduction
+                                    reduction = (
+                                        (len(words_sorted) - len(merged_words))
+                                        / len(words_sorted)
+                                    ) * 100
+                                    typer.echo(f"• Reduction:    {reduction:.1f}%")
+
+                                    # Show time range info
+                                    typer.echo(
+                                        f"• Time range:   {merged_words[0].start:.2f}s - {merged_words[-1].end:.2f}s"
+                                    )
+
+                                    # Show sample of merged words with timing
+                                    sample = []
+                                    for i, w in enumerate(merged_words[:3]):
+                                        sample.append(
+                                            f"{w.word} ({w.start:.2f}-{w.end:.2f}s)"
+                                        )
+                                    if len(merged_words) > 3:
+                                        sample.append("...")
+                                    typer.echo(f"• Sample: {' | '.join(sample)}")
+
+                                    # Check for potential issues
+                                    if len(merged_words) == len(words_sorted):
+                                        typer.echo(
+                                            "\n[WARNING] No words were removed during merging"
+                                        )
+                                        typer.echo(
+                                            "  • This could indicate that the merging strategy isn't working as expected"
+                                        )
+                                        typer.echo("  • Possible causes:")
+                                        typer.echo(
+                                            "    - Insufficient overlap between chunks"
+                                        )
+                                        typer.echo("    - Incorrect word timestamps")
+                                        typer.echo(
+                                            "    - Non-overlapping chunk boundaries"
+                                        )
+
+                            # Update the aligned result with merged words
+                            aligned_result.word_segments = merged_words
             else:
                 if output_format not in ["txt", "json"]:
                     typer.echo(
@@ -367,8 +601,11 @@ def transcribe_paths(
     batch_size: int = 1,
     *,
     chunk_len_sec: int = DEFAULT_CHUNK_LEN_SEC,
-) -> List[str]:
-    """Transcribe a list of audio file paths.
+    overlap_duration: float = 0.0,
+    merge_strategy: Literal["none", "contiguous", "lcs"] = "lcs",
+    word_timestamps: bool = False,
+) -> Union[List[str], List[List[Word]]]:
+    """Transcribe a list of audio file paths with optional chunk merging.
 
     Args:
         paths: A sequence of `Path` objects pointing to audio files.
@@ -376,47 +613,71 @@ def transcribe_paths(
             roughly linearly with this value. Defaults to 1.
         chunk_len_sec: The length of audio chunks in seconds to split the audio
             into before transcription. Defaults to `DEFAULT_CHUNK_LEN_SEC`.
+        overlap_duration: Duration of overlap between chunks in seconds. Defaults to 0.0.
+        merge_strategy: Strategy to merge overlapping chunks. One of:
+            - 'none': No merging, concatenate results
+            - 'contiguous': Use fast contiguous merging
+            - 'lcs': Use LCS-based merging (most accurate, default)
+        word_timestamps: If True, returns word-level timestamps instead of plain text.
 
     Returns:
-        A list of transcribed text strings, one for each input path.
+        If word_timestamps is False (default): A list of transcribed text strings.
+        If word_timestamps is True: A list of Word objects with timing information.
     """
     # Eager-load model (cached)
     model = get_model()
+    results: Union[List[str], List[List[Word]]] = []
 
-    results: List[str] = []
+    for path in paths:
+        # Load and segment audio with overlap
+        wav, _sr = load_audio(path, DEFAULT_SAMPLE_RATE)
+        segments_with_offsets = segment_waveform(
+            wav, _sr, chunk_len_sec, overlap_duration=overlap_duration
+        )
 
-    # Load and, if necessary, split each audio into smaller chunks
-    segmented_lists: List[List[np.ndarray]] = []
-    for p in paths:
-        wav, _sr = load_audio(p, DEFAULT_SAMPLE_RATE)
-        segments_with_offsets = segment_waveform(wav, _sr, chunk_len_sec)
-        segments = [seg for seg, _offset in segments_with_offsets]
-        segmented_lists.append(segments)
+        # Transcribe all chunks with timing information
+        texts, words_list = _transcribe_chunks(
+            model=model,
+            chunks=segments_with_offsets,
+            batch_size=batch_size,
+            word_timestamps=word_timestamps or merge_strategy != "none",
+        )
 
-    # Flatten for batching
-    flat_wavs: List[np.ndarray] = [
-        seg for segments in segmented_lists for seg in segments
-    ]
-    seg_counts = [len(segs) for segs in segmented_lists]
+        if word_timestamps:
+            # Merge word timestamps according to strategy
+            if len(words_list) == 0:
+                results.append([])
+                continue
 
-    # Helper function for chunking sequences
-    def _chunks(seq, size):
-        """Yield successive n-sized chunks from a sequence."""
-        for i in range(0, len(seq), size):
-            yield seq[i : i + size]
+            if merge_strategy == "none" or len(words_list) == 1:
+                # Just concatenate all words
+                merged_words = [word for words in words_list for word in words]
+            else:
+                # Merge overlapping chunks
+                merged_words = words_list[0]
+                for next_words in words_list[1:]:
+                    # Debug: show edge words between chunks to verify textual overlap
+                    if overlap_duration > 0 and merged_words and next_words:
+                        tail = " | ".join(
+                            f"{w.word}({w.start:.2f}s)" for w in merged_words[-3:]
+                        )
+                        head = " | ".join(
+                            f"{w.word}({w.start:.2f}s)" for w in next_words[:3]
+                        )
+                        print("[DEBUG] Chunk boundary: tail ->", tail)
+                        print("[DEBUG]                  head ->", head)
+                    if merge_strategy == "contiguous":
+                        merged_words = merge_longest_contiguous(
+                            merged_words, next_words, overlap_duration=overlap_duration
+                        )
+                    else:  # 'lcs' or any other value defaults to LCS
+                        merged_words = merge_longest_common_subsequence(
+                            merged_words, next_words, overlap_duration=overlap_duration
+                        )
 
-    transcribed_flat: List[str] = []
-    for batch_wavs in _chunks(flat_wavs, batch_size):
-        with torch.inference_mode():
-            for _h in model.transcribe(batch_wavs, batch_size=len(batch_wavs)):
-                text = _h if isinstance(_h, str) else getattr(_h, "text", str(_h))
-                transcribed_flat.append(text)
-
-    # Re-assemble per original file
-    idx = 0
-    for count in seg_counts:
-        joined = " ".join(transcribed_flat[idx : idx + count])
-        results.append(joined)
-        idx += count
+            results.append(merged_words)
+        else:
+            # Simple text concatenation without merging
+            results.append(" ".join(texts))
 
     return results

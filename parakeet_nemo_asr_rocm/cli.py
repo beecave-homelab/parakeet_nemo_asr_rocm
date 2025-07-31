@@ -117,6 +117,14 @@ def transcribe(
             help="Enable word-level timestamp generation.",
         ),
     ] = False,
+    merge_strategy: Annotated[
+        str,
+        typer.Option(
+            "--merge-strategy",
+            help="Strategy for merging overlapping chunks: 'none' (concatenate), 'contiguous' (fast merge), or 'lcs' (accurate, default)",
+            case_sensitive=False,
+        ),
+    ] = "lcs",
     overwrite: Annotated[
         bool,
         typer.Option(
@@ -181,6 +189,7 @@ def transcribe(
         overlap_duration=overlap_duration,
         highlight_words=highlight_words,
         word_timestamps=word_timestamps,
+        merge_strategy=merge_strategy,
         overwrite=overwrite,
         verbose=verbose,
         quiet=quiet,
