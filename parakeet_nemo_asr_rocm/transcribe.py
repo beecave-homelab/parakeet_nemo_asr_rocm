@@ -3,6 +3,7 @@
 Designed to be imported *and* run as a script via ``python -m
 parakeet_nemo_asr_rocm.transcribe <audio files>``.
 """
+
 # pylint: disable=import-outside-toplevel, multiple-imports
 
 from __future__ import annotations
@@ -181,11 +182,17 @@ def cli_transcribe(
     """
 
     # ---------------------------------------------------------------------
-    # Early suppression if --quiet BEFORE importing heavy libraries
+    # Early logging configuration based on --verbose flag
     # ---------------------------------------------------------------------
-    if quiet:
+    import os
+
+    if verbose:
+        # Enable verbose logging
+        os.environ["NEMO_LOG_LEVEL"] = "INFO"
+        os.environ["TRANSFORMERS_VERBOSITY"] = "info"
+    else:
+        # Suppress logs by default
         import logging
-        import os
         import warnings
 
         logging.disable(logging.CRITICAL)
@@ -248,17 +255,56 @@ def cli_transcribe(
                 f"[stream] Using chunk_len_sec={chunk_len_sec}, overlap_duration={overlap_duration}"
             )
 
-    if verbose:
-        typer.echo("--- CLI Settings ---")
-        typer.echo(f"Model: {model_name}")
-        typer.echo(f"Output Directory: {output_dir}")
-        typer.echo(f"Output Format: {output_format}")
-        typer.echo(f"Output Template: {output_template}")
-        typer.echo(f"Batch Size: {batch_size}")
-        typer.echo(f"Chunk Length (s): {chunk_len_sec}")
-        typer.echo("Precision: FP16" if fp16 else "Precision: FP32")
-        typer.echo(f"Transcribing {len(audio_files)} file(s)...")
-        typer.echo("--------------------\n")
+    if not quiet:
+        from rich.console import Console
+        from rich.table import Table
+
+        console = Console()
+        table = Table(
+            title="CLI Settings", show_header=True, header_style="bold magenta"
+        )
+        table.add_column("Category", style="cyan", no_wrap=True)
+        table.add_column("Setting", style="green")
+        table.add_column("Value", style="yellow")
+
+        # Model Settings
+        table.add_row("Model", "Model Name", model_name)
+        table.add_row("Model", "Output Directory", str(output_dir))
+        table.add_row("Model", "Output Format", output_format)
+        table.add_row("Model", "Output Template", output_template)
+
+        # Processing Settings
+        table.add_row("Processing", "Batch Size", str(batch_size))
+        table.add_row("Processing", "Chunk Length (s)", str(chunk_len_sec))
+
+        # Streaming Settings
+        if stream:
+            table.add_row("Streaming", "Stream Mode", str(stream))
+            if stream_chunk_sec > 0:
+                table.add_row(
+                    "Streaming", "Stream Chunk Length (s)", str(stream_chunk_sec)
+                )
+            table.add_row("Streaming", "Overlap Duration (s)", str(overlap_duration))
+
+        # Feature Settings
+        table.add_row("Features", "Word Timestamps", str(word_timestamps))
+        table.add_row("Features", "Highlight Words", str(highlight_words))
+        table.add_row("Features", "Merge Strategy", merge_strategy)
+
+        # Output Settings
+        table.add_row("Output", "Overwrite", str(overwrite))
+        table.add_row("Output", "Quiet Mode", str(quiet))
+        table.add_row("Output", "No Progress", str(no_progress))
+
+        # Precision Settings
+        precision = "FP16" if fp16 else "FP32" if fp32 else "Default"
+        table.add_row("Precision", "Mode", precision)
+
+        # File Count
+        table.add_row("Files", "Transcribing", f"{len(audio_files)} file(s)")
+
+        console.print(table)
+        typer.echo()
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
