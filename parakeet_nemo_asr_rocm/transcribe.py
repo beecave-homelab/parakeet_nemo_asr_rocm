@@ -403,12 +403,18 @@ def cli_transcribe(
                     performed_merge = True
 
                     # Post-process merged words: deduplicate and rebuild segments
-                    from parakeet_nemo_asr_rocm.timestamps.segmentation import segment_words
+                    from parakeet_nemo_asr_rocm.timestamps.segmentation import (
+                        segment_words,
+                    )
 
                     deduped: list[Word] = []
                     for w in merged_words:
                         # Skip immediate duplicates occurring within 200 ms
-                        if deduped and w.word == deduped[-1].word and (w.start - deduped[-1].start) < 0.2:
+                        if (
+                            deduped
+                            and w.word == deduped[-1].word
+                            and (w.start - deduped[-1].start) < 0.2
+                        ):
                             continue
                         deduped.append(w)
 

@@ -41,7 +41,10 @@ def _fix_overlaps(segments: List[Segment]) -> List[Segment]:
         if seg.start < prev.end:
             # Overlap – decide whether to trim prev or merge
             new_prev_end = max(prev.start + MIN_SEGMENT_DURATION_SEC, seg.start - 0.04)
-            if new_prev_end - prev.start >= MIN_SEGMENT_DURATION_SEC and new_prev_end < seg.start:
+            if (
+                new_prev_end - prev.start >= MIN_SEGMENT_DURATION_SEC
+                and new_prev_end < seg.start
+            ):
                 fixed[-1] = prev.copy(update={"end": new_prev_end})
             else:
                 # Merge segments
@@ -73,6 +76,7 @@ def _merge_short_segments(segments: List[Segment]) -> List[Segment]:
     i = 0
     while i < len(segments):
         cur = segments[i]
+
         # Work with plain text (no line breaks)
         def _plain_text(s: Segment) -> str:
             return s.text.replace("\n", " ")
@@ -103,6 +107,8 @@ def _merge_short_segments(segments: List[Segment]) -> List[Segment]:
         merged.append(cur)
         i += 1
     return merged
+
+
 HARD_CHAR_LIMIT = MAX_BLOCK_CHARS
 SOFT_CHAR_LIMIT = MAX_BLOCK_CHARS_SOFT
 

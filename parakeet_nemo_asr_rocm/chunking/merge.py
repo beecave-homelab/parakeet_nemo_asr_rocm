@@ -25,8 +25,8 @@ seconds. They return a **new** merged list (original inputs remain unmodified).
 
 from __future__ import annotations
 
-from typing import List
 import string
+from typing import List
 
 from parakeet_nemo_asr_rocm.timestamps.models import Word
 
