@@ -144,13 +144,10 @@ Before submitting or merging changes, always run:
 
 ```bash
 # Linting (PEP8 compliance)
-pdm run lint
+bash scripts/clean_codebase.sh
 
 # Run all tests
 pytest
-
-# Optionally, check type hints
-pdm run type-check
 ```
 
 All checks must pass before code is merged.
