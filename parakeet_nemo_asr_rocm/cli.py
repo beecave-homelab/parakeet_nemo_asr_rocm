@@ -18,17 +18,43 @@ from typing import List
 import typer
 from typing_extensions import Annotated
 
+from parakeet_nemo_asr_rocm import __version__
 from parakeet_nemo_asr_rocm.utils.constant import (
     DEFAULT_BATCH_SIZE,
     DEFAULT_CHUNK_LEN_SEC,
 )
 
+
 # Create the main Typer application instance
+def version_callback(value: bool):
+    if value:
+        print(f"parakeet-rocm version: {__version__}")
+        raise typer.Exit()
+
+
 app = typer.Typer(
     name="parakeet-rocm",
     help="A CLI for transcribing audio files using NVIDIA Parakeet-TDT via NeMo on ROCm.",
     add_completion=False,
 )
+
+
+@app.callback()
+def main(
+    version: Annotated[
+        bool,
+        typer.Option(
+            "--version",
+            help="Show the application's version and exit.",
+            callback=version_callback,
+            is_eager=True,
+            is_flag=True,
+        ),
+    ] = False,
+):
+    """
+    Manage parakeet-rocm commands.
+    """
 
 
 @app.command()
