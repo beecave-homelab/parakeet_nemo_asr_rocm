@@ -136,8 +136,8 @@ $ docker exec -it parakeet-asr-rocm parakeet-rocm /data/samples/sample.wav
 - `--word-timestamps`: Enable word-level timestamps
 - `--highlight-words`: Highlight words in SRT/VTT outputs
 - `--overwrite`: Overwrite existing files
-- `--verbose`: Enable verbose logging
-- `--quiet`: Suppress console output except progress bar
+- `--verbose`: Enable verbose logging (shows detailed logs from NeMo and Transformers)
+- `--quiet`: Suppress console output except progress bar (Note: Logs are now suppressed by default unless `--verbose` is used)
 - `--no-progress`: Disable the Rich progress bar while still showing created file paths (combine with `--quiet` for fully silent operation)
 - `--fp32` / `--fp16`: Precision control for inference
 
