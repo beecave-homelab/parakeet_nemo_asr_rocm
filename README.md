@@ -71,22 +71,16 @@ This project bridges the gap between NVIDIA's cutting-edge ASR models and AMD GP
 2. Build the Docker image (first time ~10-15 min):
 
     ```bash
-    make build
+    pip install pdm
+    pdm install -G rocm
     # or: docker compose build
     ```
 
 3. Run the container:
 
     ```bash
-    make run
+    parakeet-rocm --help
     # or: docker compose up
-    ```
-
-4. Open another terminal for an interactive shell inside the running container:
-
-    ```bash
-    make shell
-    # or: ./scripts/dev_shell.sh
     ```
 
 ### Alternative: Local Development
@@ -96,23 +90,21 @@ Prerequisites: Python 3.10, ROCm 6.4.1, PDM ≥2.15, ROCm PyTorch wheels in your
 1. Create lockfile and install dependencies (including ROCm extras):
 
     ```bash
-    make lock      # pdm lock && pdm export …
     pdm install -G rocm
+    pip install requirements-all.txt # used as fallback for local development
     ```
 
 2. Run unit tests:
 
     ```bash
-    make test      # pytest -q
+    pytest -q
     ```
 
 3. Transcribe a wav file locally:
 
     ```bash
-    python -m parakeet_nemo_asr_rocm.cli data/samples/sample.wav
-    
-    # Or use the installed CLI script
-    parakeet-rocm data/samples/sample.wav
+    # Use the installed CLI script
+    parakeet-rocm transcribe data/samples/sample.wav
     ```
 
 ## Configuration
@@ -146,19 +138,19 @@ The primary interface is a Typer-based CLI with rich help messages:
 
 ```bash
 # Basic transcription
-parakeet-rocm data/samples/sample.wav
+parakeet-rocm transcribe data/samples/sample.wav
 
 # Transcribe multiple files
-parakeet-rocm file1.wav file2.wav
+parakeet-rocm transcribe file1.wav file2.wav
 
 # Specify output directory and format
-parakeet-rocm --output-dir ./transcripts --output-format srt file.wav
+parakeet-rocm transcribe --output-dir ./transcripts --output-format srt file.wav
 
 # Adjust batch size for performance
-parakeet-rocm --batch-size 8 file.wav
+parakeet-rocm transcribe --batch-size 8 file.wav
 
 # Enable word-level timestamps
-parakeet-rocm --word-timestamps file.wav
+parakeet-rocm transcribe --word-timestamps file.wav
 
 # Get help
 parakeet-rocm --help
@@ -206,18 +198,13 @@ For local development:
 2. Run tests:
 
     ```bash
-    make test
-    # or: pytest -q
+    pytest -q
     ```
 
 3. Code formatting and linting:
 
     ```bash
-    # Format code
-    pdm run format
-    
-    # Check code style
-    pdm run lint
+    bash scripts/clean_codebase.sh
     ```
 
 ## License
