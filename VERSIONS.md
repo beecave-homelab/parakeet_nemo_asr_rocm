@@ -1,10 +1,9 @@
-# parakeet_nemo_asr_rocm
-
----
+# Parakeet-ROCm - Version History
 
 ## Table of Contents
 
-- [v0.2.2 (Current)](#v022-current---28-07-2025)
+- [v0.3.0 (Current)](#v030-current---31-07-2025)
+- [v0.2.2](#v022---28-07-2025)
 - [v0.2.1](#v021---27-07-2025)
 - [v0.2.0](#v020---27-07-2025)
 - [v0.1.1](#v011---27-07-2025)
@@ -12,7 +11,39 @@
 
 ---
 
-## **v0.2.2** (Current) - *28-07-2025*
+## **v0.3.0** (Current) - *31-07-2025*
+
+### ✨ **Chunking, Merging & Timestamping Overhaul**
+
+This release introduces a complete overhaul of long-form audio processing, featuring sophisticated chunking and merging strategies to significantly improve transcription accuracy and readability.
+
+### ✨ **New Features**
+
+- **Advanced Chunk Merging**: Added a new `chunking` module with two overlap-aware merging strategies:
+  - `lcs`: A text-aware merge using Longest Common Subsequence to produce natural transitions (default).
+  - `contiguous`: A faster, simpler merge that stitches segments at the midpoint.
+- **FFmpeg Fallback**: Integrated an FFmpeg fallback for robust audio decoding when `soundfile` encounters unsupported formats.
+- **New Output Formatters**: Added support for `CSV`, `JSONL`, and `TSV` output formats.
+
+### 🐛 **Bug Fixes**
+
+- **Fixed**: Cumulative timestamp drift in long audio transcriptions.
+  - **Issue**: Successive audio chunks would accumulate small timing errors, causing timestamps to become progressively inaccurate over time.
+  - **Root Cause**: The previous merging logic did not account for minor discrepancies in silence detection or token timing at the boundaries of chunks.
+  - **Solution**: The new `lcs` merging strategy computes a time offset based on the first aligned token pair in the overlapping region and applies it to the subsequent chunk, ensuring perfect alignment and eliminating drift.
+
+### 🔧 **Improvements**
+
+- **Refactored Transcription Pipeline**: The main `transcribe.py` script was refactored to integrate the new chunking and merging system, controlled via the `--merge-strategy` CLI argument.
+- **Enhanced Timestamping**: Word-level timestamp generation is now more accurate due to the improved merging logic.
+
+### 📝 **Key Commits**
+
+`ca829de`, `dc50eb0`, `d14104c`, `9d42c34`, `567d34a`, `6e28c16`, `024a236`, `0921c95`, `5b7b0f8`, `2e7e423`
+
+---
+
+## **v0.2.2** - *28-07-2025*
 
 ### ♻️ **Refactoring & Cleanup**
 
@@ -66,7 +97,7 @@
   - **Root Cause**: Stereo signals keep channel dimension; model expects mono.
   - **Solution**: `transcribe_paths()` now pre-loads audio, down-mixes to mono and passes numpy waveforms directly, ensuring shape `(time,)`.
 
-### 🔧 **Improvements**
+### 🔧 **Improvements in v0.1.1**
 
 - Always converts input audio to mono automatically; users no longer need to pre-process.
 

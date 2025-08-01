@@ -1,4 +1,4 @@
-# Parakeet NeMo ASR ROCm
+# Parakeet-ROCm
 
 [![Version](https://img.shields.io/badge/Version-v0.2.1-informational)](./VERSIONS.md)
 [![Python](https://img.shields.io/badge/Python-3.10-blue)](https://www.python.org)
