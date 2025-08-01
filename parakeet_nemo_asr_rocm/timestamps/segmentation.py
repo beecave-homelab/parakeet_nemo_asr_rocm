@@ -23,6 +23,92 @@ from parakeet_nemo_asr_rocm.utils.constant import (
 )
 
 # Hard and soft limits
+
+
+def _fix_overlaps(segments: List[Segment]) -> List[Segment]:
+    """Trim or merge segments so that start times are monotonically increasing.
+
+    If a segment *i* starts before previous segment *i-1* ends, we shorten
+    *i-1*'s end to *i*.start - 0.04 s (40 ms gap).  If that would violate
+    *i-1*'s minimum duration, we instead merge the two segments.
+    """
+    if not segments:
+        return segments
+
+    fixed: List[Segment] = [segments[0]]
+    for seg in segments[1:]:
+        prev = fixed[-1]
+        if seg.start < prev.end:
+            # Overlap – decide whether to trim prev or merge
+            new_prev_end = max(prev.start + MIN_SEGMENT_DURATION_SEC, seg.start - 0.04)
+            if (
+                new_prev_end - prev.start >= MIN_SEGMENT_DURATION_SEC
+                and new_prev_end < seg.start
+            ):
+                fixed[-1] = prev.copy(update={"end": new_prev_end})
+            else:
+                # Merge segments
+                combined_words = prev.words + seg.words
+                combined_text_plain = " ".join(w.word for w in combined_words)
+                fixed[-1] = Segment(
+                    text=split_lines(combined_text_plain),
+                    words=combined_words,
+                    start=prev.start,
+                    end=max(prev.end, seg.end),
+                )
+                continue  # Skip adding seg separately
+        fixed.append(seg)
+    return fixed
+
+
+def _merge_short_segments(segments: List[Segment]) -> List[Segment]:
+    """Merge adjacent *Segment*s that are too short to stand alone.
+
+    Rules for merging `cur` with the following `nxt` segment:
+    1. If `cur` duration < MIN_SEGMENT_DURATION_SEC **or** its plain text length < 15 chars.
+    2. Combined segment must still respect MAX_BLOCK_CHARS, MAX_SEGMENT_DURATION_SEC and MAX_CPS.
+    3. Repeat until `cur` meets limits or no more segments left.
+    """
+    if not segments:
+        return segments
+
+    merged: List[Segment] = []
+    i = 0
+    while i < len(segments):
+        cur = segments[i]
+
+        # Work with plain text (no line breaks)
+        def _plain_text(s: Segment) -> str:
+            return s.text.replace("\n", " ")
+
+        while (
+            (cur.end - cur.start) < MIN_SEGMENT_DURATION_SEC
+            or len(_plain_text(cur)) < 15
+        ) and i + 1 < len(segments):
+            nxt = segments[i + 1]
+            combined_words = cur.words + nxt.words
+            combined_text_plain = " ".join(w.word for w in combined_words)
+            duration = combined_words[-1].end - combined_words[0].start
+            cps = len(combined_text_plain) / max(duration, 1e-3)
+            if (
+                len(combined_text_plain) <= MAX_BLOCK_CHARS
+                and duration <= MAX_SEGMENT_DURATION_SEC
+                and cps <= MAX_CPS
+            ):
+                cur = Segment(
+                    text=split_lines(combined_text_plain),
+                    words=combined_words,
+                    start=combined_words[0].start,
+                    end=max(nxt.end, combined_words[-1].end),
+                )
+                i += 1  # Skip over the next segment as it's merged
+            else:
+                break
+        merged.append(cur)
+        i += 1
+    return merged
+
+
 HARD_CHAR_LIMIT = MAX_BLOCK_CHARS
 SOFT_CHAR_LIMIT = MAX_BLOCK_CHARS_SOFT
 
@@ -353,4 +439,10 @@ def segment_words(words: List[Word]) -> List[Segment]:
                 end=end_time,
             )
         )
+    # Post-pass: merge any adjacent segments that are still too short
+    # Merge tiny cues
+    segments = _merge_short_segments(segments)
+
+    # Ensure timestamps are strictly monotonic and non-overlapping
+    segments = _fix_overlaps(segments)
     return segments

@@ -6,18 +6,63 @@ at a desired sample rate, using *soundfile* and *librosa*.
 
 from __future__ import annotations
 
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Tuple
 
 import librosa  # type: ignore
 import numpy as np
 import soundfile as sf  # type: ignore
-from pydub import AudioSegment  # type: ignore
+from pydub import AudioSegment  # type: ignore  # fallback only
+
+from parakeet_nemo_asr_rocm.utils.constant import FORCE_FFMPEG
 
 __all__ = ["load_audio"]
 
 
 DEFAULT_SAMPLE_RATE = 16000
+
+
+def _load_with_ffmpeg(path: Path | str, target_sr: int) -> Tuple[np.ndarray, int]:
+    """Decode audio via FFmpeg piping into 16-bit PCM mono.
+
+    Args:
+        path: Path to the source audio file.
+        target_sr: Desired sample rate (Hz).
+
+    Returns:
+        Tuple[num_samples(float32), sample_rate]
+    """
+    if shutil.which("ffmpeg") is None:
+        raise RuntimeError("FFmpeg is not installed or not in PATH.")
+
+    cmd = [
+        "ffmpeg",
+        "-nostdin",
+        "-i",
+        str(path),
+        "-threads",
+        "0",
+        "-f",
+        "s16le",
+        "-ac",
+        "1",
+        "-acodec",
+        "pcm_s16le",
+        "-ar",
+        str(target_sr),
+        "-",
+    ]
+    try:
+        pcm = subprocess.run(cmd, capture_output=True, check=True).stdout
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(
+            f"FFmpeg decoding failed: {exc.stderr.decode(errors='ignore')}"
+        ) from exc
+
+    data = np.frombuffer(pcm, np.int16).astype(np.float32) / (1 << 15)
+    return data, target_sr
 
 
 def _load_with_pydub(path: Path | str) -> Tuple[np.ndarray, int]:
@@ -57,10 +102,35 @@ def load_audio(
         - audio: A 1-D float32 waveform in the range [-1, 1].
         - sr: The sample rate after resampling (equal to `target_sr`).
     """
-    # Attempt fast path via soundfile (libsndfile). This covers WAV/FLAC/OGG…
-    try:
-        data, sr = sf.read(str(path), always_2d=False)
-    except (RuntimeError, sf.LibsndfileError):  # unsupported format
+    # Loading strategy order:
+    # 1. If FORCE_FFMPEG, try direct FFmpeg pipe first.
+    # 2. Attempt libsndfile via soundfile.
+    # 3. Fallback to FFmpeg (if not tried) then pydub.
+    data: np.ndarray | None = None
+    sr: int | None = None
+
+    ffmpeg_tried = False
+    if FORCE_FFMPEG:
+        try:
+            data, sr = _load_with_ffmpeg(path, target_sr)
+            ffmpeg_tried = True
+        except Exception:
+            data = None  # allow subsequent fallbacks
+
+    if data is None:
+        try:
+            data, sr = sf.read(str(path), always_2d=False)
+        except (RuntimeError, sf.LibsndfileError):
+            data = None
+
+    if data is None and not ffmpeg_tried:
+        try:
+            data, sr = _load_with_ffmpeg(path, target_sr)
+        except Exception:
+            data = None
+
+    if data is None:
+        # Last resort: pydub (still uses ffmpeg but via AudioSegment)
         data, sr = _load_with_pydub(path)
 
     # Ensure mono

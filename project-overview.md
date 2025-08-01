@@ -1,4 +1,4 @@
-# Project Overview – parakeet_nemo_asr_rocm [![Version](https://img.shields.io/badge/Version-v0.2.2-informational)](./VERSIONS.md)
+# Project Overview – parakeet-rocm [![Version](https://img.shields.io/badge/Version-v0.3.0-informational)](./VERSIONS.md)
 
 This repository provides a containerised, GPU-accelerated Automatic Speech Recognition (ASR) inference service for the NVIDIA **Parakeet-TDT 0.6B v2** model, running on **AMD ROCm** GPUs.
 
@@ -22,24 +22,29 @@ parakeet_nemo_asr_rocm/
 ├── docker-compose.yaml         # Orchestrate container with /opt/rocm bind-mounts
 ├── pyproject.toml              # Exact, pinned Python dependencies (PDM-managed)
 ├── README.md                   # Quick-start & usage
+├── .env.example                # Example environment variables
 ├── .gitignore                  # Common ignores
 ├── .dockerignore               # Ignore build context cruft
 │
-├── parakeet_nemo_asr_rocm/     # Python package
+├── .github/                    # GitHub Actions and PR templates
+│   └── ...
+│
+├── parakeet_rocm/     # Python package
 │   ├── __init__.py
 │   ├── cli.py                  # Typer-based CLI entry point with rich progress
 │   ├── transcribe.py           # Batch transcription with timestamp support
 │   ├── chunking/
 │   │   ├── __init__.py
-│   │   └── chunker.py          # Sliding-window chunker for long audio
+│   │   └── merge.py            # Overlap-aware merging of transcribed segments
 │   ├── timestamps/
 │   │   ├── __init__.py
-│   │   ├── adapt.py            # NeMo timestamp adaptation
 │   │   ├── segmentation.py     # Intelligent subtitle segmentation
 │   │   └── models.py           # Data models for aligned results
 │   ├── formatting/
 │   │   ├── __init__.py
-│   │   └── formatters.py       # SRT, VTT, JSON, TXT output formatters
+│   │   ├── _srt.py             # SRT formatting logic
+│   │   ├── _txt.py             # TXT formatting logic
+│   │   └── ...                 # Other formatters (VTT, JSON)
 │   ├── utils/
 │   │   ├── __init__.py
 │   │   ├── audio_io.py         # WAV/PCM helpers
@@ -61,6 +66,8 @@ parakeet_nemo_asr_rocm/
 └── tests/
     ├── __init__.py
     ├── test_transcribe.py
+    ├── test_merge.py
+    ├── test_segmentation_and_formatters.py
     └── test_file_utils.py      # Tests for file utilities
 ```
 
@@ -84,7 +91,6 @@ The service now accepts and automatically decodes **WAV, MP3, AAC, FLAC and MP4*
 | `DISPLAY_BUFFER_SEC` | `0.2` | Additional display buffer after last word |
 | `PYTORCH_HIP_ALLOC_CONF` | `expandable_segments:True` | ROCm memory management |
 | `NEUTRON_NUMBA_DISABLE_JIT` | `1` | Optionally disable Numba JIT to save VRAM |
-| `CHUNK_LEN_SEC` | `20` | Length (s) of audio chunks for segmented inference |
 
 Copy `.env.example` → `.env` and adjust as needed.
 
@@ -126,17 +132,23 @@ $ docker exec -it parakeet-asr-rocm parakeet-rocm /data/samples/sample.wav
 - `--batch-size`: Batch size for inference (default: 1)
 - `--chunk-len-sec`: Segment length for long audio (default: 30)
 - `--overlap-duration`: Overlap between chunks (default: 15)
+- `--merge-strategy`: How to merge overlapping chunks: `none`, `contiguous`, `lcs` (default: lcs)
 - `--word-timestamps`: Enable word-level timestamps
 - `--highlight-words`: Highlight words in SRT/VTT outputs
 - `--overwrite`: Overwrite existing files
 - `--verbose`: Enable verbose logging
+- `--quiet`: Suppress console output except progress bar
+- `--no-progress`: Disable the Rich progress bar while still showing created file paths (combine with `--quiet` for fully silent operation)
 - `--fp32` / `--fp16`: Precision control for inference
 
 ## Advanced Features
 
 ### Long Audio Processing
 
-Automatic sliding-window chunking for audio files longer than 20 minutes with timestamp offsetting and duplicate-word merging.
+Automatic sliding-window chunking for long audio files. Overlapping segments are merged using one of two strategies:
+
+- **Contiguous**: A fast, simple merge that stitches segments at the midpoint of the overlap.
+- **LCS (Longest Common Subsequence)**: A more sophisticated, text-aware merge that aligns tokens in the overlap region to produce more natural transitions. This is the default and recommended strategy.
 
 ### Subtitle Readability
 

@@ -1,4 +1,4 @@
-# Parakeet NeMo ASR ROCm
+# Parakeet-ROCm
 
 [![Version](https://img.shields.io/badge/Version-v0.2.1-informational)](./VERSIONS.md)
 [![Python](https://img.shields.io/badge/Python-3.10-blue)](https://www.python.org)
@@ -178,6 +178,8 @@ parakeet-rocm transcribe --help
 | `--word-timestamps` | bool | Enable word-level timestamp generation | False |
 | `--overwrite` | bool | Overwrite existing output files | False |
 | `--verbose` | bool | Enable verbose output | False |
+| `--quiet` | bool | Suppress console output except progress bar | False |
+| `--no-progress` | bool | Disable the Rich progress bar while still showing created file paths | False |
 | `--fp16` | bool | Enable half-precision (FP16) inference | False |
 
 ### Output Files

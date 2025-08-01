@@ -1,10 +1,10 @@
 services:
-  parakeet-asr:
+  parakeet-rocm:
     build:
       context: .
       dockerfile: Dockerfile
-    image: parakeet-nemo-asr-rocm:latest
-    container_name: parakeet-asr-rocm
+    image: parakeet-rocm:latest
+    container_name: parakeet-rocm
     ports:
       - "8000:8000"
     environment:
@@ -20,5 +20,5 @@ services:
     volumes:
       - "/opt/rocm:/opt/rocm:ro"
       - "./data:/data"
-    command: ["python", "-m", "parakeet_nemo_asr_rocm.app"]
+    command: ["python", "-m", "parakeet_rocm"]
     restart: unless-stopped

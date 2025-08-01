@@ -18,12 +18,18 @@ REPO_ROOT: Final[pathlib.Path] = pathlib.Path(__file__).resolve().parents[2]
 # Default path of the dotenv file containing runtime overrides
 ENV_FILE: Final[pathlib.Path] = REPO_ROOT / ".env"
 
-# Default audio chunk length (seconds) used for streaming/segmented inference.
-# Can be overridden by setting CHUNK_LEN_SEC in the environment (e.g. in .env file).
+# Default audio chunk length (seconds) used for segmented inference.
+# Can be overridden by CHUNK_LEN_SEC env var.
 DEFAULT_CHUNK_LEN_SEC: Final[int] = int(os.getenv("CHUNK_LEN_SEC", "300"))
+
+# Default low-latency chunk length for *pseudo-streaming* mode.
+DEFAULT_STREAM_CHUNK_SEC: Final[int] = int(os.getenv("STREAM_CHUNK_SEC", "8"))
 
 # Default batch size for model inference
 DEFAULT_BATCH_SIZE: Final[int] = int(os.getenv("BATCH_SIZE", "12"))
+
+# Prefer FFmpeg for audio decoding (1 = yes, 0 = try soundfile first)
+FORCE_FFMPEG: Final[bool] = os.getenv("FORCE_FFMPEG", "1") == "1"
 
 # Subtitle readability constraints (industry-standard defaults)
 MAX_CPS: Final[float] = float(
