@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from typing import List, Literal, Sequence, Tuple, Union
+from typing import List, Sequence, Tuple
 
 import numpy as np
 import torch
@@ -26,7 +26,7 @@ from parakeet_nemo_asr_rocm.timestamps.word_timestamps import get_word_timestamp
 from parakeet_nemo_asr_rocm.utils.audio_io import DEFAULT_SAMPLE_RATE, load_audio
 from parakeet_nemo_asr_rocm.utils.constant import DEFAULT_CHUNK_LEN_SEC
 
-__all__ = ["transcribe_paths", "cli_transcribe"]
+__all__ = ["cli_transcribe"]
 
 
 def _transcribe_chunks(
@@ -171,7 +171,7 @@ def cli_transcribe(
     no_progress: bool = False,
     fp32: bool = False,
     fp16: bool = False,
-) -> None:
+) -> List[Path]:
     """Heavy-weight implementation backing the Typer CLI.
 
     This function encapsulates all imports that significantly slow down process
@@ -210,7 +210,7 @@ def cli_transcribe(
 
     # Heavy imports – intentionally local to avoid slowing down `--help` calls
     import typer
-    from nemo.collections.asr.parts.utils.rnnt_utils import (  # pylint: disable=import-error
+    from nemo.collections.asr.parts.utils.rnnt_utils import (
         Hypothesis,
     )
     from rich.progress import (
@@ -646,90 +646,4 @@ def cli_transcribe(
 
     if verbose and not quiet:
         typer.echo("Done.")
-
-
-def transcribe_paths(
-    paths: Sequence[Path],
-    batch_size: int = 1,
-    *,
-    chunk_len_sec: int = DEFAULT_CHUNK_LEN_SEC,
-    overlap_duration: float = 0.0,
-    merge_strategy: Literal["none", "contiguous", "lcs"] = "lcs",
-    word_timestamps: bool = False,
-) -> Union[List[str], List[List[Word]]]:
-    """Transcribe a list of audio file paths with optional chunk merging.
-
-    Args:
-        paths: A sequence of `Path` objects pointing to audio files.
-        batch_size: The batch size for model inference. GPU memory usage scales
-            roughly linearly with this value. Defaults to 1.
-        chunk_len_sec: The length of audio chunks in seconds to split the audio
-            into before transcription. Defaults to `DEFAULT_CHUNK_LEN_SEC`.
-        overlap_duration: Duration of overlap between chunks in seconds. Defaults to 0.0.
-        merge_strategy: Strategy to merge overlapping chunks. One of:
-            - 'none': No merging, concatenate results
-            - 'contiguous': Use fast contiguous merging
-            - 'lcs': Use LCS-based merging (most accurate, default)
-        word_timestamps: If True, returns word-level timestamps instead of plain text.
-
-    Returns:
-        If word_timestamps is False (default): A list of transcribed text strings.
-        If word_timestamps is True: A list of Word objects with timing information.
-    """
-    # Eager-load model (cached)
-    model = get_model()
-    results: Union[List[str], List[List[Word]]] = []
-
-    for path in paths:
-        # Load and segment audio with overlap
-        wav, _sr = load_audio(path, DEFAULT_SAMPLE_RATE)
-        segments_with_offsets = segment_waveform(
-            wav, _sr, chunk_len_sec, overlap_duration=overlap_duration
-        )
-
-        # Transcribe all chunks with timing information
-        texts, words_list = _transcribe_chunks(
-            model=model,
-            chunks=segments_with_offsets,
-            batch_size=batch_size,
-            word_timestamps=word_timestamps or merge_strategy != "none",
-        )
-
-        if word_timestamps:
-            # Merge word timestamps according to strategy
-            if len(words_list) == 0:
-                results.append([])
-                continue
-
-            if merge_strategy == "none" or len(words_list) == 1:
-                # Just concatenate all words
-                merged_words = [word for words in words_list for word in words]
-            else:
-                # Merge overlapping chunks
-                merged_words = words_list[0]
-                for next_words in words_list[1:]:
-                    # Debug: show edge words between chunks to verify textual overlap
-                    if overlap_duration > 0 and merged_words and next_words:
-                        tail = " | ".join(
-                            f"{w.word}({w.start:.2f}s)" for w in merged_words[-3:]
-                        )
-                        head = " | ".join(
-                            f"{w.word}({w.start:.2f}s)" for w in next_words[:3]
-                        )
-                        print("[DEBUG] Chunk boundary: tail ->", tail)
-                        print("[DEBUG]                  head ->", head)
-                    if merge_strategy == "contiguous":
-                        merged_words = merge_longest_contiguous(
-                            merged_words, next_words, overlap_duration=overlap_duration
-                        )
-                    else:  # 'lcs' or any other value defaults to LCS
-                        merged_words = merge_longest_common_subsequence(
-                            merged_words, next_words, overlap_duration=overlap_duration
-                        )
-
-            results.append(merged_words)
-        else:
-            # Simple text concatenation without merging
-            results.append(" ".join(texts))
-
-    return results
+    return created_files

@@ -23,10 +23,12 @@ from parakeet_nemo_asr_rocm.utils.constant import (
     DEFAULT_BATCH_SIZE,
     DEFAULT_CHUNK_LEN_SEC,
 )
+from parakeet_nemo_asr_rocm.utils.file_utils import resolve_input_paths
 
 
 # Create the main Typer application instance
 def version_callback(value: bool):
+    """Show the application's version and exit."""
     if value:
         print(f"parakeet-rocm version: {__version__}")
         raise typer.Exit()
@@ -39,8 +41,9 @@ app = typer.Typer(
 )
 
 
-@app.callback()
+@app.callback(invoke_without_command=True)
 def main(
+    ctx: typer.Context,
     version: Annotated[
         bool,
         typer.Option(
@@ -51,25 +54,30 @@ def main(
             is_flag=True,
         ),
     ] = False,
+    watch: Annotated[
+        List[str] | None,
+        typer.Option(
+            "--watch",
+            help="Watch directory/pattern for new audio files and transcribe automatically.",
+        ),
+    ] = None,
 ):
-    """
-    Manage parakeet-rocm commands.
-    """
+    """Root command acts like `transcribe` when arguments are passed without subcommand."""
+    # Root invoked without subcommand ⇒ show help fast without heavy imports.
+    if ctx.invoked_subcommand is None:
+        typer.echo(ctx.get_help())
+        raise typer.Exit()
 
 
 @app.command()
 def transcribe(
     audio_files: Annotated[
-        List[pathlib.Path],
+        List[str] | None,
         typer.Argument(
-            help="Path to one or more audio files to transcribe.",
-            exists=True,
-            file_okay=True,
-            dir_okay=False,
-            readable=True,
-            resolve_path=True,
+            help="Path(s) or wildcard pattern(s) to audio files (e.g. '*.wav').",
+            show_default=False,
         ),
-    ],
+    ] = None,
     model_name: Annotated[
         str,
         typer.Option(
@@ -147,7 +155,10 @@ def transcribe(
         str,
         typer.Option(
             "--merge-strategy",
-            help="Strategy for merging overlapping chunks: 'none' (concatenate), 'contiguous' (fast merge), or 'lcs' (accurate, default)",
+            help=(
+                "Strategy for merging overlapping chunks: 'none' (concatenate), "
+                "'contiguous' (fast merge), or 'lcs' (accurate, default)"
+            ),
             case_sensitive=False,
         ),
     ] = "lcs",
@@ -186,11 +197,21 @@ def transcribe(
             help="Force full-precision (FP32) inference. Default if no precision flag is provided.",
         ),
     ] = False,
+    watch: Annotated[
+        List[str] | None,
+        typer.Option(
+            "--watch",
+            help="Watch directory/pattern for new audio files and transcribe automatically.",
+        ),
+    ] = None,
     fp16: Annotated[
         bool,
         typer.Option(
             "--fp16",
-            help="Enable half-precision (FP16) inference for faster processing on compatible hardware.",
+            help=(
+                "Enable half-precision (FP16) inference for faster processing on "
+                "compatible hardware."
+            ),
         ),
     ] = False,
 ):
@@ -200,10 +221,62 @@ def transcribe(
     # Delegation to heavy implementation (lazy import)
     from importlib import import_module  # pylint: disable=import-outside-toplevel
 
+    # Normalise default
+    if audio_files is None:
+        audio_files = []
+
+    # Validate input combinations
+    if not audio_files and not watch:
+        raise typer.BadParameter("Provide AUDIO_FILES or --watch pattern(s).")
+
+    # Expand provided audio file patterns now (for immediate run or watcher seed)
+    resolved_paths = resolve_input_paths(audio_files)
+
+    if watch:
+        # Lazy import watcher to avoid unnecessary deps if not used
+        watcher = import_module(
+            "parakeet_nemo_asr_rocm.utils.watch"
+        ).watch_and_transcribe
+
+        def _transcribe_fn(new_files):
+            _impl = import_module("parakeet_nemo_asr_rocm.transcribe").cli_transcribe
+            return _impl(
+                audio_files=new_files,
+                model_name=model_name,
+                output_dir=output_dir,
+                output_format=output_format,
+                output_template=output_template,
+                batch_size=batch_size,
+                chunk_len_sec=chunk_len_sec,
+                stream=stream,
+                stream_chunk_sec=stream_chunk_sec,
+                overlap_duration=overlap_duration,
+                highlight_words=highlight_words,
+                word_timestamps=word_timestamps,
+                merge_strategy=merge_strategy,
+                overwrite=overwrite,
+                verbose=verbose,
+                quiet=quiet,
+                no_progress=no_progress,
+                fp32=fp32,
+                fp16=fp16,
+            )
+
+        # Start watcher loop (blocking)
+        return watcher(
+            patterns=watch,
+            transcribe_fn=_transcribe_fn,
+            output_dir=output_dir,
+            output_format=output_format,
+            output_template=output_template,
+            verbose=verbose,
+        )
+
+    # No watch mode: immediate transcription
     _impl = import_module("parakeet_nemo_asr_rocm.transcribe").cli_transcribe
 
     return _impl(
-        audio_files=audio_files,
+        audio_files=resolved_paths,
         model_name=model_name,
         output_dir=output_dir,
         output_format=output_format,
