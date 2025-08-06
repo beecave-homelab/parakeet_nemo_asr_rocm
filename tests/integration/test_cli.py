@@ -19,7 +19,8 @@ pytestmark = pytest.mark.skipif(
 def _invoke_cli(*args: str):
     """Utility to invoke the Typer CLI and return result."""
     runner = CliRunner()
-    return runner.invoke(cli_app, list(args))
+    # Always invoke the `transcribe` subcommand explicitly
+    return runner.invoke(cli_app, ["transcribe", *args])
 
 
 @pytest.mark.skipif(os.getenv("CI") == "true", reason="GPU-heavy test skipped in CI")
