@@ -2,7 +2,8 @@
 
 ## Table of Contents
 
-- [v0.3.0 (Current)](#v030-current---31-07-2025)
+- [v0.4.0 (Current)](#v040-current---06-08-2025)
+- [v0.3.0](#v030---31-07-2025)
 - [v0.2.2](#v022---28-07-2025)
 - [v0.2.1](#v021---27-07-2025)
 - [v0.2.0](#v020---27-07-2025)
@@ -11,7 +12,28 @@
 
 ---
 
-## **v0.3.0** (Current) - *31-07-2025*
+## **v0.4.0** (Current) - *06-08-2025*
+
+### ✨ **Feature Release** – Directory Watching & Media Format Expansion
+
+#### ✨ **New Features in v0.4.0**
+
+- **`--watch` Flag**: Continuously monitors directories or wildcard pattern(s) and auto-transcribes newly detected media.
+- **Verbose Watcher Logs**: With `--verbose`, the watcher now prints per-scan stats and skip reasons.
+- **Broader Media Support**: Added common audio and video extensions (e.g., `.m4a`, `.ogg`, `.mp4`, `.mkv`). Any FFmpeg-decodable file is accepted.
+
+#### 🔧 **Improvements in v0.4.0**
+
+- **Documentation**: Updated `README.md`, `project-overview.md`, and `AGENTS.md` to document the watcher and media support.
+- **Refactoring**: Centralised extension list and wildcard resolver in `utils/file_utils.py`.
+
+#### 📝 **Key Commits in v0.4.0**
+
+`<pending>`
+
+---
+
+## **v0.3.0** - *31-07-2025*
 
 ### ✨ **Chunking, Merging & Timestamping Overhaul**
 

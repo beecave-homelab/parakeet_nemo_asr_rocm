@@ -1,6 +1,6 @@
 # Parakeet-ROCm
 
-[![Version](https://img.shields.io/badge/Version-v0.2.1-informational)](./VERSIONS.md)
+[![Version](https://img.shields.io/badge/Version-v0.4.0-informational)](./VERSIONS.md)
 [![Python](https://img.shields.io/badge/Python-3.10-blue)](https://www.python.org)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)](LICENSE)
 [![ROCm](https://img.shields.io/badge/ROCm-6.4.1-red)](https://rocm.docs.amd.com/)
@@ -32,7 +32,7 @@ This project bridges the gap between NVIDIA's cutting-edge ASR models and AMD GP
 
 ## Badges
 
-[![Version](https://img.shields.io/badge/Version-v0.2.1-informational)](./VERSIONS.md)
+[![Version](https://img.shields.io/badge/Version-v0.4.0-informational)](./VERSIONS.md)
 [![Python](https://img.shields.io/badge/Python-3.10-blue)](https://www.python.org)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)](LICENSE)
 [![ROCm](https://img.shields.io/badge/ROCm-6.4.1-red)](https://rocm.docs.amd.com/)
@@ -72,7 +72,7 @@ This project bridges the gap between NVIDIA's cutting-edge ASR models and AMD GP
 
     ```bash
     pip install pdm
-    pdm install -G rocm
+    pdm install -G rocm,webui
     # or: docker compose build
     ```
 
@@ -90,7 +90,7 @@ Prerequisites: Python 3.10, ROCm 6.4.1, PDM ≥2.15, ROCm PyTorch wheels in your
 1. Create lockfile and install dependencies (including ROCm extras):
 
     ```bash
-    pdm install -G rocm
+    pdm install -G rocm,webui
     pip install requirements-all.txt # used as fallback for local development
     ```
 
@@ -152,6 +152,9 @@ parakeet-rocm transcribe --batch-size 8 file.wav
 # Enable word-level timestamps
 parakeet-rocm transcribe --word-timestamps file.wav
 
+# Continuous directory watching (auto-transcribe new files)
+parakeet-rocm transcribe --watch data/watch/ --verbose
+
 # Get help
 parakeet-rocm --help
 parakeet-rocm transcribe --help
@@ -168,6 +171,7 @@ parakeet-rocm transcribe --help
 | `--batch-size` | int | Batch size for transcription inference | 16 (from env) |
 | `--chunk-len-sec` | int | Segment length in seconds for chunked transcription | 300 (from env) |
 | `--word-timestamps` | bool | Enable word-level timestamp generation | False |
+| `--watch` | List[str] | Watch directory or wildcard pattern(s) for new audio/video files | None |
 | `--overwrite` | bool | Overwrite existing output files | False |
 | `--verbose` | bool | Enable verbose output (shows detailed logs from NeMo and Transformers) | False |
 | `--quiet` | bool | Suppress console output except progress bar (Note: Logs are now suppressed by default unless `--verbose` is used) | False |

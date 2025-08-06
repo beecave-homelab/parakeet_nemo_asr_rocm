@@ -18,7 +18,9 @@ This file provides authoritative instructions for OpenAI Codex and all AI agents
   - `chunking/merge.py`: Segment merging for long audio.
   - `timestamps/segmentation.py`: Subtitle segmentation.
   - `formatting/`: Output formatters (SRT, TXT, etc.).
-  - `utils/`: Audio I/O, file utils, constants, and env loader.
+  - `utils/`: Shared helpers (audio I/O, file utils, constants, env loader, and new *watcher*).
+    - `utils/file_utils.py`: Extension allow-list & wildcard resolver (`resolve_input_paths`).
+    - `utils/watch.py`: Polling watcher used by the new `--watch` CLI flag.
   - `models/parakeet.py`: Model wrapper.
 - **tests/**: Unit and integration tests for all major modules.
 - **scripts/**: Utility scripts for requirements and dev shell.
