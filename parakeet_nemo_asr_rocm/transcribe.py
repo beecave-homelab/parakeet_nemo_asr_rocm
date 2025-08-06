@@ -47,6 +47,7 @@ def _transcribe_chunks(
         A tuple of (texts, words_list) where:
         - texts: List of transcribed text strings
         - words_list: List of Word objects with timing information
+
     """
     # Separate chunks and their offsets
     chunk_audio = [chunk for chunk, _ in chunks]
@@ -180,7 +181,6 @@ def cli_transcribe(
     instantly, while the full dependency graph is only initialised when the user
     actually runs the `transcribe` command.
     """
-
     # ---------------------------------------------------------------------
     # Early logging configuration based on --verbose flag
     # ---------------------------------------------------------------------

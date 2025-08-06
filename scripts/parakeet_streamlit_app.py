@@ -33,9 +33,9 @@ from typing import List, Tuple
 
 import streamlit as st
 
-from parakeet_nemo_asr_rocm.utils import constant
-from parakeet_nemo_asr_rocm.transcribe import cli_transcribe
 from parakeet_nemo_asr_rocm.models.parakeet import DEFAULT_MODEL_NAME
+from parakeet_nemo_asr_rocm.transcribe import cli_transcribe
+from parakeet_nemo_asr_rocm.utils import constant
 
 
 def enforce_precision(fp16: bool, fp32: bool) -> Tuple[bool, bool]:

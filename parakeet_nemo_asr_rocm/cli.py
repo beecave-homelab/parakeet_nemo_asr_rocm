@@ -1,10 +1,8 @@
-"""
-This module provides the command-line interface for the Parakeet-NEMO ASR application,
-built using the Typer library.
+"""Command-line interface for the Parakeet-NeMo ASR application using Typer.
 
-It is designed to replace the older `argparse`-based CLI with a more robust and
-user-friendly interface that supports subcommands, rich help messages, and better
-argument handling.
+Replaces the older `argparse`-based CLI with a more robust and user-friendly
+interface that supports subcommands, rich help messages, and improved argument
+handling.
 
 Features:
 - `transcribe` command for running ASR on audio files.
@@ -215,9 +213,7 @@ def transcribe(
         ),
     ] = False,
 ):
-    """
-    Transcribe one or more audio files using the specified NVIDIA NeMo Parakeet model.
-    """
+    """Transcribe audio files using the specified NVIDIA NeMo Parakeet model."""
     # Delegation to heavy implementation (lazy import)
     from importlib import import_module  # pylint: disable=import-outside-toplevel
 

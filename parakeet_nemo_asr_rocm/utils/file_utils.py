@@ -1,5 +1,4 @@
-"""File utilities for handling output file naming, overwrite protection, and
-helper functions for resolving audio input paths / patterns.
+"""File utilities for output file naming, overwrite protection, and audio path resolution.
 
 All functions are type-hinted and documented. The module exposes:
 • `get_unique_filename` – unchanged
@@ -12,7 +11,6 @@ from __future__ import annotations
 import pathlib
 from glob import glob
 from typing import Iterable, List, Sequence, Union
-
 
 PathLike = Union[str, pathlib.Path]
 
@@ -67,6 +65,7 @@ def get_unique_filename(
 
     Returns:
         A pathlib.Path that is guaranteed not to exist (unless overwrite=True).
+
     """
     path = pathlib.Path(base_path)
 
@@ -96,6 +95,7 @@ def _is_audio_file(
         path: File path to test.
         exts: Optional iterable of file extensions to accept; defaults to
             :data:`AUDIO_EXTENSIONS`.
+
     """
     _exts = set(ext.lower() for ext in (exts or AUDIO_EXTENSIONS))
     return path.is_file() and path.suffix.lower() in _exts
@@ -127,8 +127,8 @@ def resolve_input_paths(
     Returns:
         Sorted list (by insertion order, duplicates removed) of ``pathlib.Path``
         objects that exist and match the extension filter.
-    """
 
+    """
     if isinstance(patterns, (str, pathlib.Path)):
         patterns = [patterns]
 

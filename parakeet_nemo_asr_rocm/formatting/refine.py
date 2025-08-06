@@ -90,6 +90,20 @@ class SubtitleRefiner:
         max_line_chars: int = MAX_LINE_CHARS,
         max_lines_per_block: int = getattr(_c, "MAX_LINES_PER_BLOCK", 2),
     ) -> None:
+        """Initialise the refiner with limits for caption readability.
+
+        Args:
+            max_cps: Maximum characters per second.
+            min_dur: Minimum duration of a caption in seconds.
+            gap_frames: Minimum gap between captions in frames.
+            fps: Frames per second of the video.
+            max_line_chars: Maximum characters per subtitle line.
+            max_lines_per_block: Maximum lines per subtitle block.
+
+        Returns:
+            None.
+
+        """
         self.max_cps = max_cps
         self.min_dur = min_dur
         self.gap = gap_frames / fps

@@ -19,9 +19,9 @@ from __future__ import annotations
 import signal
 import sys
 import time
+from pathlib import Path
 from types import FrameType
 from typing import Callable, Iterable, List, Sequence
-from pathlib import Path
 
 from parakeet_nemo_asr_rocm.utils.file_utils import (
     AUDIO_EXTENSIONS,
@@ -38,6 +38,7 @@ def _default_sig_handler(signum: int, _frame: FrameType | None) -> None:  # noqa
     Args:
         signum: Received POSIX signal number (unused).
         _frame: Current stack frame (unused).
+
     """
     print("\n[watch] Stopping…")
     sys.exit(0)
@@ -59,6 +60,7 @@ def _needs_transcription(
 
     Returns:
         ``True`` if no output file exists for *path* yet, ``False`` otherwise.
+
     """
     target_name = output_template.format(
         parent=path.parent.name,
@@ -102,6 +104,7 @@ def watch_and_transcribe(
 
     Returns:
         None. This function blocks indefinitely until interrupted.
+
     """
     print(
         f"[watch] Monitoring {', '.join(map(str, patterns))} …  (Press Ctrl+C to stop)"

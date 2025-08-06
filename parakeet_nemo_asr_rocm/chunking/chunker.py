@@ -38,6 +38,7 @@ def segment_waveform(
     Returns:
         A list of ``(segment, offset_sec)`` tuples where ``offset_sec`` is the
         starting position of the segment relative to the original audio.
+
     """
     if chunk_len_sec <= 0 or wav.size == 0:
         return [(wav, 0.0)]

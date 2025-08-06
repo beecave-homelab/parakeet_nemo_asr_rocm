@@ -1,6 +1,7 @@
-"""
-Formatter for JSON Lines (.jsonl) output.
-Each line contains a JSON object representing a single *Segment* in the aligned result.
+"""Formatter for JSON Lines (.jsonl) output.
+
+Each line contains a JSON object representing a single *Segment* in the aligned
+result.
 """
 
 from __future__ import annotations
