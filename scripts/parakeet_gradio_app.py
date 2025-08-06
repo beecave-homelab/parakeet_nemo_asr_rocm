@@ -26,10 +26,12 @@ default web browser.
 """
 
 import pathlib
+
 import gradio as gr
-from parakeet_nemo_asr_rocm.utils import constant
-from parakeet_nemo_asr_rocm.transcribe import cli_transcribe
+
 from parakeet_nemo_asr_rocm.models.parakeet import DEFAULT_MODEL_NAME
+from parakeet_nemo_asr_rocm.transcribe import cli_transcribe
+from parakeet_nemo_asr_rocm.utils import constant
 
 
 def enforce_precision(fp16: bool, fp32: bool) -> tuple[bool, bool]:
@@ -349,7 +351,7 @@ def build_ui() -> gr.Blocks:
         # Main action and output
         with gr.Row():
             transcribe_btn = gr.Button("Transcribe", variant="primary", size="lg")
-            status = gr.Markdown("", visible=False)
+            _status = gr.Markdown("", visible=False)
         output_files = gr.Files(label="Transcription Outputs", interactive=False)
 
         # Inject custom JS for theme persistence

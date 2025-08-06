@@ -1,10 +1,9 @@
-"""Utilities for converting word-level timestamps into readability-compliant
-subtitle segments.
+"""Utilities for converting word-level timestamps into readability-compliant subtitle segments.
 
-This module implements the main sentence/clause segmentation algorithm that
-was previously embedded in `timestamps/adapt.py`. It now lives in a dedicated
-module so that the logic can be unit-tested in isolation and imported by
-both the NeMo adaptor and formatting layers.
+This module implements the main sentence/clause segmentation algorithm that was
+previously embedded in ``timestamps/adapt.py``. It now lives in a dedicated
+module so that the logic can be unit-tested in isolation and imported by both
+the NeMo adaptor and formatting layers.
 """
 
 from __future__ import annotations
@@ -265,7 +264,6 @@ def split_lines(text: str) -> str:
     3. Fall back to a greedy split just before the limit if no balanced break
        fulfils the minimum-length requirement.
     """
-
     if len(text) <= MAX_LINE_CHARS:
         return text
 
@@ -380,7 +378,6 @@ def segment_words(words: List[Word]) -> List[Segment]:
     4. Adjacent sentences are merged while combined block still satisfies
        all limits.
     """
-
     if not words:
         return []
 

@@ -1,8 +1,7 @@
-"""
-This module provides a registry of output formatters for transcriptions.
+"""Registry of output formatters for transcriptions.
 
-It allows for easy extension with new formats by adding a new formatter function
-and registering it in the `FORMATTERS` dictionary.
+Allows easy extension with new formats by adding a formatter function and
+registering it in the ``FORMATTERS`` dictionary.
 """
 
 from typing import Callable, Dict
@@ -30,8 +29,7 @@ FORMATTERS: Dict[str, Callable[[AlignedResult], str]] = {
 
 
 def get_formatter(format_name: str) -> Callable[[AlignedResult], str]:
-    """
-    Retrieves the formatter function for a given format name.
+    """Retrieve the formatter function for a given format name.
 
     Args:
         format_name: The name of the format (e.g., 'txt', 'json').
@@ -41,6 +39,7 @@ def get_formatter(format_name: str) -> Callable[[AlignedResult], str]:
 
     Raises:
         ValueError: If the format_name is not supported.
+
     """
     formatter = FORMATTERS.get(format_name.lower())
     if not formatter:

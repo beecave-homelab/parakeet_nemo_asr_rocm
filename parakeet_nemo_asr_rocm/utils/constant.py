@@ -93,4 +93,6 @@ TRANSFORMERS_VERBOSITY: Final[str] = os.getenv("TRANSFORMERS_VERBOSITY", "ERROR"
 # Gradio configuration
 GRADIO_SERVER_PORT: Final[int] = int(os.getenv("GRADIO_SERVER_PORT", "7861"))
 GRADIO_SERVER_NAME: Final[str] = os.getenv("GRADIO_SERVER_NAME", "0.0.0.0")
-GRADIO_ANALYTICS_ENABLED: Final[bool] = os.getenv("GRADIO_ANALYTICS_ENABLED", "False").lower() == "true"
+GRADIO_ANALYTICS_ENABLED: Final[bool] = (
+    os.getenv("GRADIO_ANALYTICS_ENABLED", "False").lower() == "true"
+)

@@ -14,7 +14,7 @@ DEFAULT_MODEL_NAME = "nvidia/parakeet-tdt-0.6b-v2"
 
 
 def _load_model(model_name: str) -> nemo_asr.models.ASRModel:
-    """Loads and initializes the Parakeet ASR model.
+    """Load and initialize the Parakeet ASR model.
 
     This function downloads the pre-trained model from NVIDIA's NGC, sets it
     to evaluation mode, and moves it to the appropriate device (GPU if
@@ -22,6 +22,7 @@ def _load_model(model_name: str) -> nemo_asr.models.ASRModel:
 
     Returns:
         The initialized ASRModel instance.
+
     """
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = nemo_asr.models.ASRModel.from_pretrained(model_name).eval().to(device)
@@ -40,5 +41,6 @@ def get_model(
 
     Returns:
         The cached ASRModel instance, moved to GPU if available.
+
     """
     return _load_model(model_name)

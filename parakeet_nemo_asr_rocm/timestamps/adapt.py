@@ -1,9 +1,7 @@
-"""
-This module provides functions for adapting NeMo's timestamped ASR output
-into a standardized format.
+"""Functions for adapting NeMo's timestamped ASR output into a standard format.
 
-The goal is to create a common data structure (`AlignedResult`) that can be used
-by various formatters (e.g., SRT, VTT, JSON) regardless of the specifics of the
+The goal is to create a common data structure (``AlignedResult``) usable by
+various formatters (e.g., SRT, VTT, JSON) regardless of the specifics of the
 ASR model's output.
 """
 
@@ -29,7 +27,7 @@ from parakeet_nemo_asr_rocm.utils.constant import (
 def adapt_nemo_hypotheses(
     hypotheses: List[Hypothesis], model: ASRModel, time_stride: float | None = None
 ) -> AlignedResult:
-    """Converts a list of NeMo Hypothesis objects into a standardized AlignedResult."""
+    """Convert a list of NeMo Hypothesis objects into a standard ``AlignedResult``."""
     word_timestamps = get_word_timestamps(hypotheses, model, time_stride)
 
     if not word_timestamps:
