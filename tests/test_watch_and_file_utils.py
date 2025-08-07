@@ -11,7 +11,11 @@ from parakeet_nemo_asr_rocm.utils.file_utils import (
     AUDIO_EXTENSIONS,
     resolve_input_paths,
 )
-from parakeet_nemo_asr_rocm.utils.watch import watch_and_transcribe
+from parakeet_nemo_asr_rocm.utils.watch import (
+    _default_sig_handler,
+    _needs_transcription,
+    watch_and_transcribe,
+)
 
 
 @pytest.fixture()
@@ -80,3 +84,56 @@ def test_watch_and_transcribe(
         )
 
     assert audio_file in called
+
+
+def test_default_sig_handler_exits():
+    """The default signal handler should raise ``SystemExit``."""
+    with pytest.raises(SystemExit):
+        _default_sig_handler(2, None)
+
+
+def test_needs_transcription(tmp_path: pathlib.Path) -> None:
+    """_needs_transcription detects existing output files."""
+    audio = tmp_path / "a.wav"
+    audio.write_text("x")
+    out = tmp_path / "a.txt"
+    assert _needs_transcription(audio, tmp_path, "{filename}", "txt")
+    out.write_text("done")
+    assert not _needs_transcription(audio, tmp_path, "{filename}", "txt")
+
+
+def test_watch_and_transcribe_verbose(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    """Verbose mode should print debug information and skip existing outputs."""
+
+    new_file = tmp_path / "fresh.wav"
+    new_file.write_bytes(b"0")
+    old_file = tmp_path / "old.wav"
+    old_file.write_bytes(b"0")
+    (tmp_path / "old.txt").write_text("done")
+
+    captured: List[pathlib.Path] = []
+
+    def _mock_transcribe(paths: List[pathlib.Path]) -> None:  # noqa: D401
+        captured.extend(paths)
+
+    def _sleep(_secs: float) -> None:  # noqa: D401
+        raise _ExitLoop()
+
+    monkeypatch.setattr("time.sleep", _sleep)
+    monkeypatch.setattr("signal.signal", lambda *a, **k: None)
+
+    with pytest.raises(_ExitLoop):
+        watch_and_transcribe(
+            patterns=[str(tmp_path / "*.wav")],
+            transcribe_fn=_mock_transcribe,
+            poll_interval=0,
+            output_dir=tmp_path,
+            output_format="txt",
+            output_template="{filename}",
+            audio_exts=AUDIO_EXTENSIONS,
+            verbose=True,
+        )
+
+    assert new_file in captured and old_file not in captured
