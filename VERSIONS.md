@@ -29,7 +29,11 @@
 
 #### 📝 **Key Commits in v0.4.0**
 
-`<pending>`
+- `06fbf0c` - Bump version to 0.4.0 and enhance transcription functionality
+- `6e4a6df` - Add directory watching and media format expansion features
+- `ce354db` - Enhance logging configuration in transcribe.py
+- `31d9c2f` - Update .env.example and remove Makefile for ROCm support
+- `b197025` - Refactor Dockerfile and update dependencies for ROCm support
 
 ---
 
