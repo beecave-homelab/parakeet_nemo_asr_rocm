@@ -3,13 +3,14 @@
 Designed to be imported *and* run as a script via ``python -m
 parakeet_nemo_asr_rocm.transcribe <audio files>``.
 """
+
 # pylint: disable=import-outside-toplevel, multiple-imports
 
 from __future__ import annotations
 
 import time
 from pathlib import Path
-from typing import List, Literal, Sequence, Tuple, Union
+from typing import List, Sequence, Tuple
 
 import numpy as np
 import torch
@@ -25,7 +26,7 @@ from parakeet_nemo_asr_rocm.timestamps.word_timestamps import get_word_timestamp
 from parakeet_nemo_asr_rocm.utils.audio_io import DEFAULT_SAMPLE_RATE, load_audio
 from parakeet_nemo_asr_rocm.utils.constant import DEFAULT_CHUNK_LEN_SEC
 
-__all__ = ["transcribe_paths", "cli_transcribe"]
+__all__ = ["cli_transcribe"]
 
 
 def _transcribe_chunks(
@@ -46,6 +47,7 @@ def _transcribe_chunks(
         A tuple of (texts, words_list) where:
         - texts: List of transcribed text strings
         - words_list: List of Word objects with timing information
+
     """
     # Separate chunks and their offsets
     chunk_audio = [chunk for chunk, _ in chunks]
@@ -170,7 +172,7 @@ def cli_transcribe(
     no_progress: bool = False,
     fp32: bool = False,
     fp16: bool = False,
-) -> None:
+) -> List[Path]:
     """Heavy-weight implementation backing the Typer CLI.
 
     This function encapsulates all imports that significantly slow down process
@@ -179,13 +181,18 @@ def cli_transcribe(
     instantly, while the full dependency graph is only initialised when the user
     actually runs the `transcribe` command.
     """
+    # ---------------------------------------------------------------------
+    # Early logging configuration based on --verbose flag
+    # ---------------------------------------------------------------------
+    import os
 
-    # ---------------------------------------------------------------------
-    # Early suppression if --quiet BEFORE importing heavy libraries
-    # ---------------------------------------------------------------------
-    if quiet:
+    if verbose:
+        # Enable verbose logging
+        os.environ["NEMO_LOG_LEVEL"] = "INFO"
+        os.environ["TRANSFORMERS_VERBOSITY"] = "info"
+    else:
+        # Suppress logs by default
         import logging
-        import os
         import warnings
 
         logging.disable(logging.CRITICAL)
@@ -203,7 +210,7 @@ def cli_transcribe(
 
     # Heavy imports – intentionally local to avoid slowing down `--help` calls
     import typer
-    from nemo.collections.asr.parts.utils.rnnt_utils import (  # pylint: disable=import-error
+    from nemo.collections.asr.parts.utils.rnnt_utils import (
         Hypothesis,
     )
     from rich.progress import (
@@ -248,17 +255,56 @@ def cli_transcribe(
                 f"[stream] Using chunk_len_sec={chunk_len_sec}, overlap_duration={overlap_duration}"
             )
 
-    if verbose:
-        typer.echo("--- CLI Settings ---")
-        typer.echo(f"Model: {model_name}")
-        typer.echo(f"Output Directory: {output_dir}")
-        typer.echo(f"Output Format: {output_format}")
-        typer.echo(f"Output Template: {output_template}")
-        typer.echo(f"Batch Size: {batch_size}")
-        typer.echo(f"Chunk Length (s): {chunk_len_sec}")
-        typer.echo("Precision: FP16" if fp16 else "Precision: FP32")
-        typer.echo(f"Transcribing {len(audio_files)} file(s)...")
-        typer.echo("--------------------\n")
+    if not quiet:
+        from rich.console import Console
+        from rich.table import Table
+
+        console = Console()
+        table = Table(
+            title="CLI Settings", show_header=True, header_style="bold magenta"
+        )
+        table.add_column("Category", style="cyan", no_wrap=True)
+        table.add_column("Setting", style="green")
+        table.add_column("Value", style="yellow")
+
+        # Model Settings
+        table.add_row("Model", "Model Name", model_name)
+        table.add_row("Model", "Output Directory", str(output_dir))
+        table.add_row("Model", "Output Format", output_format)
+        table.add_row("Model", "Output Template", output_template)
+
+        # Processing Settings
+        table.add_row("Processing", "Batch Size", str(batch_size))
+        table.add_row("Processing", "Chunk Length (s)", str(chunk_len_sec))
+
+        # Streaming Settings
+        if stream:
+            table.add_row("Streaming", "Stream Mode", str(stream))
+            if stream_chunk_sec > 0:
+                table.add_row(
+                    "Streaming", "Stream Chunk Length (s)", str(stream_chunk_sec)
+                )
+            table.add_row("Streaming", "Overlap Duration (s)", str(overlap_duration))
+
+        # Feature Settings
+        table.add_row("Features", "Word Timestamps", str(word_timestamps))
+        table.add_row("Features", "Highlight Words", str(highlight_words))
+        table.add_row("Features", "Merge Strategy", merge_strategy)
+
+        # Output Settings
+        table.add_row("Output", "Overwrite", str(overwrite))
+        table.add_row("Output", "Quiet Mode", str(quiet))
+        table.add_row("Output", "No Progress", str(no_progress))
+
+        # Precision Settings
+        precision = "FP16" if fp16 else "FP32" if fp32 else "Default"
+        table.add_row("Precision", "Mode", precision)
+
+        # File Count
+        table.add_row("Files", "Transcribing", f"{len(audio_files)} file(s)")
+
+        console.print(table)
+        typer.echo()
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -600,90 +646,4 @@ def cli_transcribe(
 
     if verbose and not quiet:
         typer.echo("Done.")
-
-
-def transcribe_paths(
-    paths: Sequence[Path],
-    batch_size: int = 1,
-    *,
-    chunk_len_sec: int = DEFAULT_CHUNK_LEN_SEC,
-    overlap_duration: float = 0.0,
-    merge_strategy: Literal["none", "contiguous", "lcs"] = "lcs",
-    word_timestamps: bool = False,
-) -> Union[List[str], List[List[Word]]]:
-    """Transcribe a list of audio file paths with optional chunk merging.
-
-    Args:
-        paths: A sequence of `Path` objects pointing to audio files.
-        batch_size: The batch size for model inference. GPU memory usage scales
-            roughly linearly with this value. Defaults to 1.
-        chunk_len_sec: The length of audio chunks in seconds to split the audio
-            into before transcription. Defaults to `DEFAULT_CHUNK_LEN_SEC`.
-        overlap_duration: Duration of overlap between chunks in seconds. Defaults to 0.0.
-        merge_strategy: Strategy to merge overlapping chunks. One of:
-            - 'none': No merging, concatenate results
-            - 'contiguous': Use fast contiguous merging
-            - 'lcs': Use LCS-based merging (most accurate, default)
-        word_timestamps: If True, returns word-level timestamps instead of plain text.
-
-    Returns:
-        If word_timestamps is False (default): A list of transcribed text strings.
-        If word_timestamps is True: A list of Word objects with timing information.
-    """
-    # Eager-load model (cached)
-    model = get_model()
-    results: Union[List[str], List[List[Word]]] = []
-
-    for path in paths:
-        # Load and segment audio with overlap
-        wav, _sr = load_audio(path, DEFAULT_SAMPLE_RATE)
-        segments_with_offsets = segment_waveform(
-            wav, _sr, chunk_len_sec, overlap_duration=overlap_duration
-        )
-
-        # Transcribe all chunks with timing information
-        texts, words_list = _transcribe_chunks(
-            model=model,
-            chunks=segments_with_offsets,
-            batch_size=batch_size,
-            word_timestamps=word_timestamps or merge_strategy != "none",
-        )
-
-        if word_timestamps:
-            # Merge word timestamps according to strategy
-            if len(words_list) == 0:
-                results.append([])
-                continue
-
-            if merge_strategy == "none" or len(words_list) == 1:
-                # Just concatenate all words
-                merged_words = [word for words in words_list for word in words]
-            else:
-                # Merge overlapping chunks
-                merged_words = words_list[0]
-                for next_words in words_list[1:]:
-                    # Debug: show edge words between chunks to verify textual overlap
-                    if overlap_duration > 0 and merged_words and next_words:
-                        tail = " | ".join(
-                            f"{w.word}({w.start:.2f}s)" for w in merged_words[-3:]
-                        )
-                        head = " | ".join(
-                            f"{w.word}({w.start:.2f}s)" for w in next_words[:3]
-                        )
-                        print("[DEBUG] Chunk boundary: tail ->", tail)
-                        print("[DEBUG]                  head ->", head)
-                    if merge_strategy == "contiguous":
-                        merged_words = merge_longest_contiguous(
-                            merged_words, next_words, overlap_duration=overlap_duration
-                        )
-                    else:  # 'lcs' or any other value defaults to LCS
-                        merged_words = merge_longest_common_subsequence(
-                            merged_words, next_words, overlap_duration=overlap_duration
-                        )
-
-            results.append(merged_words)
-        else:
-            # Simple text concatenation without merging
-            results.append(" ".join(texts))
-
-    return results
+    return created_files

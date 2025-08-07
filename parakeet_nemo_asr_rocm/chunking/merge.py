@@ -63,6 +63,7 @@ def merge_longest_contiguous(
         Chronologically sorted token lists from successive chunks.
     overlap_duration
         How many **seconds** of audio overlapped between the two parent chunks.
+
     """
     if not a:
         return b.copy()

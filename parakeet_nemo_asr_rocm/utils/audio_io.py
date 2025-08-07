@@ -33,6 +33,7 @@ def _load_with_ffmpeg(path: Path | str, target_sr: int) -> Tuple[np.ndarray, int
 
     Returns:
         Tuple[num_samples(float32), sample_rate]
+
     """
     if shutil.which("ffmpeg") is None:
         raise RuntimeError("FFmpeg is not installed or not in PATH.")
@@ -75,6 +76,7 @@ def _load_with_pydub(path: Path | str) -> Tuple[np.ndarray, int]:
         A tuple containing:
         - data: Mono float32 waveform in range [-1, 1].
         - sr: Native sample rate of the decoded audio.
+
     """
     # pydub loads into AudioSegment (16-bit PCM by default)
     seg: AudioSegment = AudioSegment.from_file(path)
@@ -101,6 +103,7 @@ def load_audio(
         A tuple containing:
         - audio: A 1-D float32 waveform in the range [-1, 1].
         - sr: The sample rate after resampling (equal to `target_sr`).
+
     """
     # Loading strategy order:
     # 1. If FORCE_FFMPEG, try direct FFmpeg pipe first.

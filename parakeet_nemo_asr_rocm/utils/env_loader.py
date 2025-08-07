@@ -44,6 +44,7 @@ def load_project_env(force: bool = False) -> None:
     Args:
         force: If True, bypasses the cache and forces a reload of the
             environment file. Defaults to False.
+
     """
     if force:
         load_project_env.cache_clear()  # type: ignore[attr-defined]

@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from parakeet_nemo_asr_rocm.formatting import FORMATTERS, get_formatter
+from parakeet_nemo_asr_rocm.formatting._jsonl import to_jsonl
 from parakeet_nemo_asr_rocm.timestamps.models import AlignedResult, Segment, Word
 from parakeet_nemo_asr_rocm.timestamps.segmentation import segment_words, split_lines
 
@@ -83,6 +84,14 @@ def test_formatters_output(fmt):
         assert "\n" not in output.strip() or output.strip().count("\n") >= 0
     elif fmt in {"srt", "vtt"}:
         assert "-->" in output
+
+
+def test_jsonl_fallback_dict():
+    result = AlignedResult(
+        segments=[{"text": "x", "words": [], "start": 0, "end": 1}], word_segments=[]
+    )
+    data = to_jsonl(result)
+    assert data.strip().startswith("{")
 
 
 if __name__ == "__main__":

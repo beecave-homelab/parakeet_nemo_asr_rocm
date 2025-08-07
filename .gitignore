@@ -223,3 +223,9 @@ output/*.srt
 output/*.json
 output/*.vtt
 .vscode/settings.json
+
+data/watch/*.wav
+data/watch/*.mp3
+data/watch/*.ogg
+data/watch/*.flac
+data/watch/*.m4a

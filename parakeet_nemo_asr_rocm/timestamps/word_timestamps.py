@@ -1,6 +1,4 @@
-"""
-Module for extracting word-level timestamps from NeMo's model outputs.
-"""
+"""Utilities for extracting word-level timestamps from NeMo ASR hypotheses."""
 
 from typing import List
 
@@ -15,8 +13,7 @@ def get_word_timestamps(
     model: ASRModel,
     time_stride: float | None = None,
 ) -> List[Word]:
-    """
-    Calculates word-level timestamps from a Transducer model's hypotheses.
+    """Calculate word-level timestamps from a Transducer model's hypotheses.
 
     Args:
         hypotheses: A list of Hypothesis objects from NeMo.
@@ -25,6 +22,7 @@ def get_word_timestamps(
 
     Returns:
         A list of Word objects with calculated timestamps.
+
     """
     all_words: List[Word] = []
     # SentencePiece-based tokenizers (used by NeMo ASR models) encode the beginning

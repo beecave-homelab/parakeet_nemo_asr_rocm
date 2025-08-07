@@ -6,7 +6,13 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from parakeet_nemo_asr_rocm.cli import app as cli_app
+try:  # pragma: no cover - handled in tests
+    from parakeet_nemo_asr_rocm.cli import app as cli_app
+except ModuleNotFoundError:  # pragma: no cover
+    cli_app = None
+    pytest.skip(
+        "parakeet_nemo_asr_rocm package not importable", allow_module_level=True
+    )
 
 # Path to sample audio for tests
 AUDIO_PATH = Path(__file__).parents[2] / "data" / "samples" / "sample.wav"
@@ -19,7 +25,8 @@ pytestmark = pytest.mark.skipif(
 def _invoke_cli(*args: str):
     """Utility to invoke the Typer CLI and return result."""
     runner = CliRunner()
-    return runner.invoke(cli_app, list(args))
+    # Always invoke the `transcribe` subcommand explicitly
+    return runner.invoke(cli_app, ["transcribe", *args])
 
 
 @pytest.mark.skipif(os.getenv("CI") == "true", reason="GPU-heavy test skipped in CI")

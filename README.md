@@ -1,6 +1,6 @@
 # Parakeet-ROCm
 
-[![Version](https://img.shields.io/badge/Version-v0.2.1-informational)](./VERSIONS.md)
+[![Version](https://img.shields.io/badge/Version-v0.4.0-informational)](./VERSIONS.md)
 [![Python](https://img.shields.io/badge/Python-3.10-blue)](https://www.python.org)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)](LICENSE)
 [![ROCm](https://img.shields.io/badge/ROCm-6.4.1-red)](https://rocm.docs.amd.com/)
@@ -32,7 +32,7 @@ This project bridges the gap between NVIDIA's cutting-edge ASR models and AMD GP
 
 ## Badges
 
-[![Version](https://img.shields.io/badge/Version-v0.2.1-informational)](./VERSIONS.md)
+[![Version](https://img.shields.io/badge/Version-v0.4.0-informational)](./VERSIONS.md)
 [![Python](https://img.shields.io/badge/Python-3.10-blue)](https://www.python.org)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)](LICENSE)
 [![ROCm](https://img.shields.io/badge/ROCm-6.4.1-red)](https://rocm.docs.amd.com/)
@@ -71,22 +71,16 @@ This project bridges the gap between NVIDIA's cutting-edge ASR models and AMD GP
 2. Build the Docker image (first time ~10-15 min):
 
     ```bash
-    make build
+    pip install pdm
+    pdm install -G rocm,webui
     # or: docker compose build
     ```
 
 3. Run the container:
 
     ```bash
-    make run
+    parakeet-rocm --help
     # or: docker compose up
-    ```
-
-4. Open another terminal for an interactive shell inside the running container:
-
-    ```bash
-    make shell
-    # or: ./scripts/dev_shell.sh
     ```
 
 ### Alternative: Local Development
@@ -96,23 +90,21 @@ Prerequisites: Python 3.10, ROCm 6.4.1, PDM ≥2.15, ROCm PyTorch wheels in your
 1. Create lockfile and install dependencies (including ROCm extras):
 
     ```bash
-    make lock      # pdm lock && pdm export …
-    pdm install -G rocm
+    pdm install -G rocm,webui
+    pip install requirements-all.txt # used as fallback for local development
     ```
 
 2. Run unit tests:
 
     ```bash
-    make test      # pytest -q
+    pytest -q
     ```
 
 3. Transcribe a wav file locally:
 
     ```bash
-    python -m parakeet_nemo_asr_rocm.cli data/samples/sample.wav
-    
-    # Or use the installed CLI script
-    parakeet-rocm data/samples/sample.wav
+    # Use the installed CLI script
+    parakeet-rocm transcribe data/samples/sample.wav
     ```
 
 ## Configuration
@@ -146,19 +138,22 @@ The primary interface is a Typer-based CLI with rich help messages:
 
 ```bash
 # Basic transcription
-parakeet-rocm data/samples/sample.wav
+parakeet-rocm transcribe data/samples/sample.wav
 
 # Transcribe multiple files
-parakeet-rocm file1.wav file2.wav
+parakeet-rocm transcribe file1.wav file2.wav
 
 # Specify output directory and format
-parakeet-rocm --output-dir ./transcripts --output-format srt file.wav
+parakeet-rocm transcribe --output-dir ./transcripts --output-format srt file.wav
 
 # Adjust batch size for performance
-parakeet-rocm --batch-size 8 file.wav
+parakeet-rocm transcribe --batch-size 8 file.wav
 
 # Enable word-level timestamps
-parakeet-rocm --word-timestamps file.wav
+parakeet-rocm transcribe --word-timestamps file.wav
+
+# Continuous directory watching (auto-transcribe new files)
+parakeet-rocm transcribe --watch data/watch/ --verbose
 
 # Get help
 parakeet-rocm --help
@@ -176,9 +171,10 @@ parakeet-rocm transcribe --help
 | `--batch-size` | int | Batch size for transcription inference | 16 (from env) |
 | `--chunk-len-sec` | int | Segment length in seconds for chunked transcription | 300 (from env) |
 | `--word-timestamps` | bool | Enable word-level timestamp generation | False |
+| `--watch` | List[str] | Watch directory or wildcard pattern(s) for new audio/video files | None |
 | `--overwrite` | bool | Overwrite existing output files | False |
-| `--verbose` | bool | Enable verbose output | False |
-| `--quiet` | bool | Suppress console output except progress bar | False |
+| `--verbose` | bool | Enable verbose output (shows detailed logs from NeMo and Transformers) | False |
+| `--quiet` | bool | Suppress console output except progress bar (Note: Logs are now suppressed by default unless `--verbose` is used) | False |
 | `--no-progress` | bool | Disable the Rich progress bar while still showing created file paths | False |
 | `--fp16` | bool | Enable half-precision (FP16) inference | False |
 
@@ -206,18 +202,13 @@ For local development:
 2. Run tests:
 
     ```bash
-    make test
-    # or: pytest -q
+    pytest -q
     ```
 
 3. Code formatting and linting:
 
     ```bash
-    # Format code
-    pdm run format
-    
-    # Check code style
-    pdm run lint
+    bash scripts/clean_codebase.sh
     ```
 
 ## License

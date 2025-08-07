@@ -1,5 +1,7 @@
 """Project-wide constants for convenient reuse."""
 
+# pylint: disable=line-too-long
+
 from __future__ import annotations
 
 import os
@@ -83,3 +85,14 @@ MAX_BLOCK_CHARS_SOFT: Final[int] = int(os.getenv("MAX_BLOCK_CHARS_SOFT", "90"))
 SEGMENT_MAX_GAP_SEC: Final[float] = float(os.getenv("SEGMENT_MAX_GAP_SEC", "1.0"))
 SEGMENT_MAX_DURATION_SEC: Final[float] = MAX_SEGMENT_DURATION_SEC  # alias
 SEGMENT_MAX_WORDS: Final[int] = int(os.getenv("SEGMENT_MAX_WORDS", "40"))
+
+# Logging configuration
+NEMO_LOG_LEVEL: Final[str] = os.getenv("NEMO_LOG_LEVEL", "ERROR")
+TRANSFORMERS_VERBOSITY: Final[str] = os.getenv("TRANSFORMERS_VERBOSITY", "ERROR")
+
+# Gradio configuration
+GRADIO_SERVER_PORT: Final[int] = int(os.getenv("GRADIO_SERVER_PORT", "7861"))
+GRADIO_SERVER_NAME: Final[str] = os.getenv("GRADIO_SERVER_NAME", "0.0.0.0")
+GRADIO_ANALYTICS_ENABLED: Final[bool] = (
+    os.getenv("GRADIO_ANALYTICS_ENABLED", "False").lower() == "true"
+)

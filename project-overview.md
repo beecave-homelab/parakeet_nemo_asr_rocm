@@ -1,4 +1,4 @@
-# Project Overview – parakeet-rocm [![Version](https://img.shields.io/badge/Version-v0.3.0-informational)](./VERSIONS.md)
+# Project Overview – parakeet-rocm [![Version](https://img.shields.io/badge/Version-v0.4.0-informational)](./VERSIONS.md)
 
 This repository provides a containerised, GPU-accelerated Automatic Speech Recognition (ASR) inference service for the NVIDIA **Parakeet-TDT 0.6B v2** model, running on **AMD ROCm** GPUs.
 
@@ -29,7 +29,7 @@ parakeet_nemo_asr_rocm/
 ├── .github/                    # GitHub Actions and PR templates
 │   └── ...
 │
-├── parakeet_rocm/     # Python package
+├── parakeet_nemo_asr_rocm/     # Python package
 │   ├── __init__.py
 │   ├── cli.py                  # Typer-based CLI entry point with rich progress
 │   ├── transcribe.py           # Batch transcription with timestamp support
@@ -49,6 +49,7 @@ parakeet_nemo_asr_rocm/
 │   │   ├── __init__.py
 │   │   ├── audio_io.py         # WAV/PCM helpers
 │   │   ├── file_utils.py       # File naming and overwrite protection
+│   │   ├── watch.py            # File/directory watching logic
 │   │   ├── constant.py         # Environment variables and constants
 │   │   └── env_loader.py       # Environment configuration loader
 │   └── models/
@@ -71,9 +72,13 @@ parakeet_nemo_asr_rocm/
     └── test_file_utils.py      # Tests for file utilities
 ```
 
-## Audio format support
+## Audio / video format support
 
-The service now accepts and automatically decodes **WAV, MP3, AAC, FLAC and MP4** audio inputs. Decoding first attempts `libsndfile` (via `soundfile`) and transparently falls back to **pydub + ffmpeg** for formats not natively supported.
+Any media container that **FFmpeg** can decode is accepted out-of-the-box. The default extension allow-list includes common audio (`wav, mp3, aac, flac, ogg, opus, m4a, wma, aiff, alac, amr`) and video (`mp4, mkv, mov, avi, webm, flv, ts`) formats, but developers may extend `AUDIO_EXTENSIONS` in `utils/file_utils.py` if required.
+
+Decoding strategy:
+1. Try `soundfile` (`libsndfile`) directly – fast path for standard PCM containers.
+2. Fallback to **pydub + ffmpeg** to convert exotic formats to WAV for downstream processing. Decoding first attempts `libsndfile` (via `soundfile`) and transparently falls back to **pydub + ffmpeg** for formats not natively supported.
 
 ## Configuration & environment variables
 
@@ -122,7 +127,12 @@ $ docker exec -it parakeet-asr-rocm parakeet-rocm /data/samples/sample.wav
 
 ### Commands
 
-- `transcribe`: Transcribe one or more audio files with rich progress reporting
+- `transcribe`: Transcribe one or more audio/video files with rich progress reporting  
+  ↳ `--watch <DIR|GLOB>`: continuously monitor a directory or wildcard pattern(s) for *new* media files and transcribe them automatically. The watcher:
+  - polls every 5 s (configurable) using `utils.watch.watch_and_transcribe()`
+  - debounces already-seen files using an in-memory set
+  - skips creation if an output file matching the template already exists
+  - emits detailed debug lines when `--verbose` is supplied (per-scan stats, skip reasons, etc.)
 
 ### Options
 
@@ -136,8 +146,8 @@ $ docker exec -it parakeet-asr-rocm parakeet-rocm /data/samples/sample.wav
 - `--word-timestamps`: Enable word-level timestamps
 - `--highlight-words`: Highlight words in SRT/VTT outputs
 - `--overwrite`: Overwrite existing files
-- `--verbose`: Enable verbose logging
-- `--quiet`: Suppress console output except progress bar
+- `--verbose`: Enable verbose logging (shows detailed logs from NeMo and Transformers)
+- `--quiet`: Suppress console output except progress bar (Note: Logs are now suppressed by default unless `--verbose` is used)
 - `--no-progress`: Disable the Rich progress bar while still showing created file paths (combine with `--quiet` for fully silent operation)
 - `--fp32` / `--fp16`: Precision control for inference
 

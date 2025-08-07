@@ -6,7 +6,8 @@ services:
     image: parakeet-rocm:latest
     container_name: parakeet-rocm
     ports:
-      - "8000:8000"
+      - "7862:7862" # Gradio
+      - "8502:8502" # Streamlit
     environment:
       HSA_OVERRIDE_GFX_VERSION: "10.3.0"
       LD_LIBRARY_PATH: "/opt/rocm/lib:/opt/rocm/lib64"
@@ -16,9 +17,8 @@ services:
       - "/dev/dri"
     group_add:
       - "video"
-      - "render"
     volumes:
       - "/opt/rocm:/opt/rocm:ro"
       - "./data:/data"
-    command: ["python", "-m", "parakeet_rocm"]
+    command: ["parakeet-rocm", "transcribe", "--output-format", "srt", "--word-timestamps", "--stream", "--batch-size", "42", "--watch", "/data/watch/"]
     restart: unless-stopped
