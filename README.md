@@ -10,6 +10,8 @@ Containerised, GPU-accelerated Automatic Speech Recognition (ASR) inference serv
 ## 🚀 What's Included
 
 - **CLI Tool**: Typer-based command-line interface with rich progress tracking
+- **Modular Transcription Pipeline**: `parakeet_nemo_asr_rocm/transcription` split
+  into CLI orchestration, per-file processing, and shared utilities
 - **Docker Support**: Pre-configured container with ROCm, NeMo 2.2, and all dependencies
 - **Batch Processing**: Efficient batch transcription with configurable chunking
 - **Multiple Output Formats**: TXT, SRT, VTT, and JSON transcription outputs

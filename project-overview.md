@@ -32,7 +32,12 @@ parakeet_nemo_asr_rocm/
 ├── parakeet_nemo_asr_rocm/     # Python package
 │   ├── __init__.py
 │   ├── cli.py                  # Typer-based CLI entry point with rich progress
-│   ├── transcribe.py           # Batch transcription with timestamp support
+│   ├── transcribe.py           # Thin wrapper re-exporting transcription CLI
+│   ├── transcription/          # Modular transcription pipeline
+│   │   ├── __init__.py
+│   │   ├── cli.py              # Orchestrates batch transcription
+│   │   ├── file_processor.py   # Per-file transcription logic
+│   │   └── utils.py            # Environment and stride helpers
 │   ├── chunking/
 │   │   ├── __init__.py
 │   │   └── merge.py            # Overlap-aware merging of transcribed segments
@@ -71,6 +76,11 @@ parakeet_nemo_asr_rocm/
     ├── test_segmentation_and_formatters.py
     └── test_file_utils.py      # Tests for file utilities
 ```
+
+The `transcription` package isolates environment configuration, CLI
+orchestration, and per-file processing. This separation of concerns keeps
+the command-line interface lightweight while centralising reusable
+helpers for future extensions.
 
 ## Audio / video format support
 

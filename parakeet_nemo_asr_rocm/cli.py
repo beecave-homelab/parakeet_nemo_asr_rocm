@@ -21,7 +21,8 @@ from parakeet_nemo_asr_rocm.utils.constant import (
     DEFAULT_BATCH_SIZE,
     DEFAULT_CHUNK_LEN_SEC,
 )
-from parakeet_nemo_asr_rocm.utils.file_utils import resolve_input_paths
+# Placeholder for lazy import; enables monkeypatching in tests.
+resolve_input_paths = None  # type: ignore[assignment]
 
 
 # Create the main Typer application instance
@@ -226,6 +227,14 @@ def transcribe(
         raise typer.BadParameter("Provide AUDIO_FILES or --watch pattern(s).")
 
     # Expand provided audio file patterns now (for immediate run or watcher seed)
+    global resolve_input_paths  # pylint: disable=global-statement
+    if resolve_input_paths is None:
+        from parakeet_nemo_asr_rocm.utils.file_utils import (
+            resolve_input_paths as _resolve_input_paths,
+        )  # Lazy import to keep --help snappy.
+
+        resolve_input_paths = _resolve_input_paths
+
     resolved_paths = resolve_input_paths(audio_files)
 
     if watch:
