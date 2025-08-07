@@ -2,7 +2,8 @@
 
 ## Table of Contents
 
-- [v0.4.0 (Current)](#v040-current---06-08-2025)
+- [v0.5.0 (Current)](#v050-current---07-08-2025)
+- [v0.4.0](#v040---06-08-2025)
 - [v0.3.0](#v030---31-07-2025)
 - [v0.2.2](#v022---28-07-2025)
 - [v0.2.1](#v021---27-07-2025)
@@ -12,7 +13,41 @@
 
 ---
 
-## **v0.4.0** (Current) - *06-08-2025*
+## **v0.5.0** (Current) - *07-08-2025*
+
+### ✨ **Feature Release** – Web UI and Enhanced Testing Suite
+
+#### ✨ **New Features in v0.5.0**
+
+- **Streamlit Web UI**: Added a new web-based interface for easier interaction with the ASR system
+- **Gradio Integration**: Included Gradio-based interface for quick testing and demonstrations
+- **Docker Compose Setup**: Added configuration for running web interfaces in containers
+
+#### 🧪 **Testing Improvements in v0.5.0**
+
+- **Expanded Test Coverage**: Added comprehensive unit tests for core functionality
+- **Test Utilities**: Improved test infrastructure and utilities
+- **CI/CD**: Enhanced testing in continuous integration
+
+#### 🔧 **Code Quality in v0.5.0**
+
+- **Code Style**: Applied consistent formatting and linting across the codebase
+- **Documentation**: Updated documentation for new features and improvements
+- **Dependencies**: Updated and organized project dependencies
+
+#### 📝 **Key Commits in v0.5.0**
+
+- `7ab6305` - docs: Update VERSIONS.md with v0.4.0 commit hashes
+- `237be60` - docs: Update AGENTS.md to include Pull Request Workflow and Rules
+- `437d4a7` - Add extensive unit tests to raise coverage
+- `58a1472` - Add docstring and style fixes across package
+- `8ee71a3` - test: Update CLI invocation to explicitly invoke 'transcribe' subcommand
+- `6f1a22f` - feat: Add Streamlit Web UI for Parakeet-NEMO ASR
+- `80b4e55` - feat: Update Docker Compose configuration for Gradio and Streamlit
+
+---
+
+## **v0.4.0** - *06-08-2025*
 
 ### ✨ **Feature Release** – Directory Watching & Media Format Expansion
 

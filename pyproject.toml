@@ -1,6 +1,6 @@
 [project]
 name = "parakeet-rocm"
-version = "0.4.0"
+version = "0.5.0"
 description = "ASR inference service for NVIDIA Parakeet-TDT 0.6B v2 on AMD ROCm GPUs"
 authors = [{ name = "elvee" }]
 requires-python = ">=3.10,<3.11"
