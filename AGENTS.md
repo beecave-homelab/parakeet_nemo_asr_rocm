@@ -156,7 +156,227 @@ All checks must pass before code is merged.
 
 ---
 
-## 8. AGENTS.md Scope and Precedence
+## 8. Pull requests
+
+## 8. Pull Requests
+
+All AI agents must follow the **Pull Request Workflow** described below. This chapter standardizes how code changes are interpreted, documented, and submitted to ensure consistent, high-quality contributions.
+
+---
+
+### ✅ Pull Request Workflow
+
+#### 🧠 Coding & Diff Analysis
+
+- Determine the current Git branch using:
+
+  ```bash
+  git branch --show-current
+  ```
+
+  - If this fails, request user input for the branch name.
+- Run:
+
+  ```bash
+  git --no-pager diff <branch_name>
+  ```
+
+  to retrieve the code changes. **Never ask the user to run this unless your command fails.**
+- Use `git diff --name-status` to classify changes as:
+
+  - **Added**
+  - **Modified**
+  - **Deleted**
+- Analyze each change in detail and summarize in plain language.
+- Provide:
+
+  - Reasoning behind each change
+  - Expected impact
+  - A testing plan
+- Include file-specific information and relevant code snippets.
+- **Abort the PR generation** if:
+
+  - The diff is empty
+  - Only trivial changes (e.g., formatting or comments) are detected
+
+---
+
+### 💬 Commit Message Rules
+
+Use the following commit types **only**:
+
+| Type       | Emoji | Description                           |
+| ---------- | ----- | ------------------------------------- |
+| `feat`     | ✨     | New feature                           |
+| `fix`      | 🐛    | Bug fix                               |
+| `docs`     | 📝    | Documentation only changes            |
+| `style`    | 💎    | Code style changes (formatting, etc.) |
+| `refactor` | ♻️    | Refactor without behavior change      |
+| `test`     | 🧪    | Add/fix tests                         |
+| `chore`    | 📦    | Build process / tools / infra changes |
+| `revert`   | ⏪     | Revert a previous commit              |
+
+---
+
+### 📄 Pull Request Formatting
+
+- Use the following exact Markdown structure for PRs:
+
+  - Fill out **all** sections using details from `git diff`
+  - Maintain clear, consistent formatting and section headers
+- Save the final output in:
+
+  ```bash
+  .github/PULL_REQUEST/
+  ```
+
+  using the filename format:
+
+  ```bash
+  pr-<commit_type>-<short_name>-merge.md
+  ```
+
+  - Example: `pr-feat-badgeai-merge.md`
+
+---
+
+### 📁 File Change Categorization
+
+- Categorize all modified files under:
+
+  - `### Added`
+  - `### Modified`
+  - `### Deleted`
+- For each file, explain:
+
+  - What changed
+  - Why it changed
+  - Its impact
+
+---
+
+### 🧠 Code Snippets & Reasoning
+
+- Include relevant code snippets from the diff
+- Provide explanations for:
+
+  - Functional changes
+  - Design decisions
+  - Refactors or removals
+
+---
+
+### 🧪 Testing Requirements
+
+All pull requests must include a test plan:
+
+- **Unit Testing**
+- **Integration Testing**
+- **Manual Testing** (if applicable)
+
+---
+
+### 📤 Final Output Rules
+
+- PR must be written in **Markdown**
+- Only allowed commit types and emojis may be used
+- Output must:
+
+  - Use the correct filename format
+  - Be saved to `.github/PULL_REQUEST/`
+  - Be presented to the user in a nested Markdown code block
+
+---
+
+### 🧾 Pull Request Template Format
+
+````markdown
+# Pull Request: [Short Title for the PR]
+
+## Summary
+
+Provide a brief and clear summary of the changes made in this pull request. For example:  
+"This PR introduces [feature/fix] to achieve [goal]. It includes changes to [describe major components]."
+
+---
+
+## Files Changed
+
+### Added
+
+1. **`<file_name>`**  
+   - Description of what was added and its purpose.
+
+### Modified
+
+1. **`<file_name>`**  
+   - Description of what was modified and why. Include relevant details.
+
+### Deleted
+
+1. **`<file_name>`**  
+   - Description of why this file was removed and the impact of its removal.
+
+---
+
+## Code Changes
+
+### `<file_name>`
+
+```<language>
+# Provide a snippet of significant changes in the file if applicable.
+# Highlight key changes, improvements, or new functionality.
+```
+
+- Explain the code changes in plain language, such as what functionality was added or modified and why.
+
+---
+
+## Reason for Changes
+
+Provide the reasoning for making these changes. For example:  
+- Fixing a bug  
+- Adding a new feature  
+- Refactoring for better performance or readability  
+
+---
+
+## Impact of Changes
+
+### Positive Impacts
+
+- List benefits, such as improved performance, new functionality, or bug fixes.
+
+### Potential Issues
+
+- Mention any known risks, dependencies, or edge cases introduced by these changes.
+
+---
+
+## Test Plan
+
+1. **Unit Testing**  
+   - Describe how unit tests were added or modified.  
+   - Mention specific scenarios covered.
+
+2. **Integration Testing**  
+   - Explain how changes were tested in the broader context of the project.  
+
+3. **Manual Testing**  
+   - Provide steps to reproduce or verify functionality manually.
+
+---
+
+## Additional Notes
+
+- Add any relevant context, known limitations, or future considerations.
+- Include suggestions for enhancements or follow-up work if applicable.
+
+````
+
+---
+
+## 9. AGENTS.md Scope and Precedence
 
 - This AGENTS.md applies to the entire repository.
 - If more deeply nested AGENTS.md files are added, they take precedence for their directory tree.
