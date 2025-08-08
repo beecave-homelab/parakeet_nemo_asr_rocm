@@ -28,7 +28,16 @@ def sample_words() -> list[Word]:
     ]
 
 
-def test_segment_words_single_segment(sample_words):
+def test_segment_words_single_segment(sample_words: list[Word]) -> None:
+    """Simple input should yield a single segment with expected timing.
+
+    Args:
+        sample_words (list[Word]): Small synthetic word sequence.
+
+    Returns:
+        None: This is a pytest test function.
+    """
+
     segments = segment_words(sample_words)
     # Should create exactly one caption segment for this simple sentence
     assert len(segments) == 1
@@ -39,7 +48,13 @@ def test_segment_words_single_segment(sample_words):
     assert seg.end >= 1.6
 
 
-def test_split_lines_balanced():
+def test_split_lines_balanced() -> None:
+    """Long text should be split into balanced lines.
+
+    Returns:
+        None: This is a pytest test function.
+    """
+
     long_text = (
         "This is a deliberately long sentence that should be automatically split "
         "into two balanced lines by the split_lines function."
@@ -53,7 +68,11 @@ def test_split_lines_balanced():
 
 
 def _make_aligned_result() -> AlignedResult:
-    """Helper: build a minimal *AlignedResult* for formatter tests."""
+    """Helper: build a minimal aligned result for formatter tests.
+
+    Returns:
+        AlignedResult: Minimal single-segment aligned result instance.
+    """
 
     words = [
         Word(word="Hello", start=0.0, end=0.8),
@@ -64,7 +83,15 @@ def _make_aligned_result() -> AlignedResult:
 
 
 @pytest.mark.parametrize("fmt", list(FORMATTERS.keys()))
-def test_formatters_output(fmt):
+def test_formatters_output(fmt: str) -> None:
+    """Each formatter should return a string containing expected markers.
+
+    Args:
+        fmt (str): Formatter key registered in ``FORMATTERS``.
+
+    Returns:
+        None: This is a pytest test function.
+    """
     aligned = _make_aligned_result()
     formatter = get_formatter(fmt)
 
@@ -86,7 +113,12 @@ def test_formatters_output(fmt):
         assert "-->" in output
 
 
-def test_jsonl_fallback_dict():
+def test_jsonl_fallback_dict() -> None:
+    """``to_jsonl`` should handle dict-like segments gracefully.
+
+    Returns:
+        None: This is a pytest test function.
+    """
     result = AlignedResult(
         segments=[{"text": "x", "words": [], "start": 0, "end": 1}], word_segments=[]
     )

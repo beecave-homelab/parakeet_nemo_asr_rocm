@@ -1,4 +1,8 @@
-"""Unit tests for overlapping token merging utilities."""
+"""Unit tests for overlapping token merging utilities.
+
+These tests cover both contiguous and LCS-based merging to ensure
+chronological ordering and duplicate removal in overlapped regions.
+"""
 
 from __future__ import annotations
 
@@ -9,8 +13,13 @@ from parakeet_nemo_asr_rocm.chunking import (
 from parakeet_nemo_asr_rocm.timestamps.models import Word
 
 
-def _make_overlap_samples():
-    """Construct two overlapping *Word* lists with duplicate words."""
+def _make_overlap_samples() -> tuple[list[Word], list[Word]]:
+    """Construct two overlapping word lists with duplicate tokens.
+
+    Returns:
+        tuple[list[Word], list[Word]]: Two sequences ``a`` and ``b`` where
+        ``b`` starts within ``a`` to create an overlap region.
+    """
 
     a = [
         Word(word="Hello", start=0.0, end=0.3),
@@ -28,7 +37,12 @@ def _make_overlap_samples():
     return a, b
 
 
-def test_merge_longest_contiguous():
+def test_merge_longest_contiguous() -> None:
+    """Contiguous merge should preserve order and maintain monotonic timing.
+
+    Returns:
+        None: This is a pytest test function.
+    """
     a, b = _make_overlap_samples()
     merged = merge_longest_contiguous(a, b, overlap_duration=0.6)
     # Check that basic sequence ordering is chronological and no missing words
@@ -40,7 +54,12 @@ def test_merge_longest_contiguous():
         assert prev.end <= nxt.start + 1e-6
 
 
-def test_merge_longest_common_subsequence():
+def test_merge_longest_common_subsequence() -> None:
+    """LCS merge should deduplicate overlap and keep natural order.
+
+    Returns:
+        None: This is a pytest test function.
+    """
     a, b = _make_overlap_samples()
     merged = merge_longest_common_subsequence(a, b, overlap_duration=0.6)
     words = [w.word for w in merged]
