@@ -154,6 +154,9 @@ parakeet-rocm transcribe --batch-size 8 file.wav
 # Enable word-level timestamps
 parakeet-rocm transcribe --word-timestamps file.wav
 
+# Refine timestamps using stable-ts with VAD
+parakeet-rocm transcribe --word-timestamps --stabilize --vad file.wav
+
 # Continuous directory watching (auto-transcribe new files)
 parakeet-rocm transcribe --watch data/watch/ --verbose
 
@@ -173,6 +176,10 @@ parakeet-rocm transcribe --help
 | `--batch-size` | int | Batch size for transcription inference | 16 (from env) |
 | `--chunk-len-sec` | int | Segment length in seconds for chunked transcription | 300 (from env) |
 | `--word-timestamps` | bool | Enable word-level timestamp generation | False |
+| `--stabilize` | bool | Refine word timestamps using stable-ts | False |
+| `--vad` | bool | Enable VAD during stabilization | False |
+| `--demucs` | bool | Use Demucs denoiser during stabilization | False |
+| `--vad-threshold` | float | VAD probability threshold | 0.35 |
 | `--watch` | List[str] | Watch directory or wildcard pattern(s) for new audio/video files | None |
 | `--overwrite` | bool | Overwrite existing output files | False |
 | `--verbose` | bool | Enable verbose output (shows detailed logs from NeMo and Transformers) | False |

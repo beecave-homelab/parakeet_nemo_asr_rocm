@@ -132,6 +132,34 @@ def transcribe(
             help="Highlight each word in SRT/VTT outputs (e.g., bold).",
         ),
     ] = False,
+    stabilize: Annotated[
+        bool,
+        typer.Option(
+            "--stabilize",
+            help="Refine word timestamps using stable-ts.",
+        ),
+    ] = False,
+    vad: Annotated[
+        bool,
+        typer.Option(
+            "--vad",
+            help="Enable voice activity detection during stabilization.",
+        ),
+    ] = False,
+    demucs: Annotated[
+        bool,
+        typer.Option(
+            "--demucs",
+            help="Use Demucs denoiser during stabilization.",
+        ),
+    ] = False,
+    vad_threshold: Annotated[
+        float,
+        typer.Option(
+            "--vad-threshold",
+            help="VAD probability threshold for suppression.",
+        ),
+    ] = 0.35,
     # Chunking and streaming
     chunk_len_sec: Annotated[
         int,
@@ -257,6 +285,10 @@ def transcribe(
                 overlap_duration=overlap_duration,
                 highlight_words=highlight_words,
                 word_timestamps=word_timestamps,
+                stabilize=stabilize,
+                demucs=demucs,
+                vad=vad,
+                vad_threshold=vad_threshold,
                 merge_strategy=merge_strategy,
                 overwrite=overwrite,
                 verbose=verbose,
@@ -292,6 +324,10 @@ def transcribe(
         overlap_duration=overlap_duration,
         highlight_words=highlight_words,
         word_timestamps=word_timestamps,
+        stabilize=stabilize,
+        demucs=demucs,
+        vad=vad,
+        vad_threshold=vad_threshold,
         merge_strategy=merge_strategy,
         overwrite=overwrite,
         verbose=verbose,

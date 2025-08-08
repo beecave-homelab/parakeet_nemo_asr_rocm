@@ -11,10 +11,12 @@ from parakeet_nemo_asr_rocm.chunking import (
     segment_waveform,
 )
 from parakeet_nemo_asr_rocm.timestamps.models import AlignedResult, Segment, Word
+from parakeet_nemo_asr_rocm.timestamps.segmentation import segment_words
 from parakeet_nemo_asr_rocm.timestamps.word_timestamps import get_word_timestamps
 from parakeet_nemo_asr_rocm.utils.audio_io import DEFAULT_SAMPLE_RATE, load_audio
 from parakeet_nemo_asr_rocm.utils.constant import MAX_CPS, MAX_LINE_CHARS
 from parakeet_nemo_asr_rocm.utils.file_utils import get_unique_filename
+from parakeet_nemo_asr_rocm.integrations.stable_ts import refine_word_timestamps
 
 from .utils import calc_time_stride
 
@@ -145,6 +147,10 @@ def transcribe_file(
     highlight_words: bool,
     word_timestamps: bool,
     merge_strategy: str,
+    stabilize: bool,
+    demucs: bool,
+    vad: bool,
+    vad_threshold: float,
     overwrite: bool,
     verbose: bool,
     quiet: bool,
@@ -168,6 +174,10 @@ def transcribe_file(
         highlight_words: Highlight words in output when supported.
         word_timestamps: Request word-level timestamps from the model.
         merge_strategy: Strategy for merging timestamps (``"lcs"`` or ``"contiguous"``).
+        stabilize: Refine word timestamps using stable-ts when ``True``.
+        demucs: Enable Demucs denoising during stabilization.
+        vad: Enable voice activity detection during stabilization.
+        vad_threshold: VAD probability threshold when ``vad`` is enabled.
         overwrite: Overwrite existing files when ``True``.
         verbose: Enable verbose output.
         quiet: Suppress non-error output.
@@ -196,6 +206,23 @@ def transcribe_file(
         aligned_result = _merge_word_segments(
             hypotheses, model, merge_strategy, overlap_duration, verbose
         )
+        if stabilize:
+            try:
+                refined = refine_word_timestamps(
+                    aligned_result.word_segments,
+                    audio_path,
+                    demucs=demucs,
+                    vad=vad,
+                    vad_threshold=vad_threshold,
+                )
+                new_segments = segment_words(refined)
+                aligned_result = AlignedResult(
+                    segments=new_segments,
+                    word_segments=refined,
+                )
+            except RuntimeError as exc:
+                if verbose and not quiet:
+                    typer.echo(f"Stabilization skipped: {exc}", err=True)
     else:
         if output_format not in ["txt", "json"]:
             if not quiet:
