@@ -2,7 +2,8 @@
 
 ## Table of Contents
 
-- [v0.5.0 (Current)](#v050-current---07-08-2025)
+- [v0.5.1 (Current)](#v051-current---08-08-2025)
+- [v0.5.0](#v050---07-08-2025)
 - [v0.4.0](#v040---06-08-2025)
 - [v0.3.0](#v030---31-07-2025)
 - [v0.2.2](#v022---28-07-2025)
@@ -13,7 +14,25 @@
 
 ---
 
-## **v0.5.0** (Current) - *07-08-2025*
+## **v0.5.1** (Current) - *08-08-2025*
+
+### 🐛 **Bug Fixes in v0.5.1**
+
+- Fixed: Pylint constant naming issues across CLI modules
+  - Issue: Constants not defined in capital letters caused lint failures
+  - Solution: Renamed attributes to uppercase (e.g., `RESOLVE_INPUT_PATHS`) and aligned usages
+
+### 📝 **Documentation**
+
+- Updated: `AGENTS.md` and `project-overview.md` to reflect CLI options and configurations
+
+### 📝 **Key Commits in v0.5.1**
+
+`882f4c4`, `439751b`, `0b3d54b`, `121ebc4`, `d91e499`
+
+---
+
+## **v0.5.0** - *07-08-2025*
 
 ### ✨ **Feature Release** – Web UI and Enhanced Testing Suite
 
