@@ -23,7 +23,7 @@ def test_main_help():
 def test_transcribe_basic(monkeypatch, tmp_path):
     audio = tmp_path / "a.wav"
     audio.write_text("x")
-    monkeypatch.setattr(cli, "resolve_input_paths", lambda files: [audio])
+    monkeypatch.setattr(cli, "RESOLVE_INPUT_PATHS", lambda files: [audio])
 
     class DummyModule:
         @staticmethod
@@ -63,7 +63,7 @@ def test_transcribe_watch_mode(monkeypatch, tmp_path):
         return Trans
 
     monkeypatch.setattr(importlib, "import_module", fake_import_module)
-    monkeypatch.setattr(cli, "resolve_input_paths", lambda files: [])
+    monkeypatch.setattr(cli, "RESOLVE_INPUT_PATHS", lambda files: [])
     result = cli.transcribe(
         audio_files=None, watch=["*.wav"], output_dir=tmp_path, output_format="txt"
     )
