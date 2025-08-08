@@ -233,13 +233,9 @@ def transcribe_file(
     )
 
     try:
-        filename_part = output_template.format(
-            filename=audio_path.stem, index=file_idx
-        )
+        filename_part = output_template.format(filename=audio_path.stem, index=file_idx)
     except KeyError as exc:  # pragma: no cover
-        raise ValueError(
-            f"Unknown placeholder in --output-template: {exc}"
-        ) from exc
+        raise ValueError(f"Unknown placeholder in --output-template: {exc}") from exc
 
     base_output_path = output_dir / f"{filename_part}.{output_format.lower()}"
     output_path = get_unique_filename(base_output_path, overwrite=overwrite)

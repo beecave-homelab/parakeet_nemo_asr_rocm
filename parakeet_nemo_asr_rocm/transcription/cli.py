@@ -1,18 +1,22 @@
 """CLI-facing transcription orchestration."""
 
+# pylint: disable=import-outside-toplevel
+
 from __future__ import annotations
 
 from contextlib import nullcontext
 from pathlib import Path
 from typing import List, Sequence
 
+from parakeet_nemo_asr_rocm.transcription.file_processor import transcribe_file
+from parakeet_nemo_asr_rocm.transcription.utils import (
+    compute_total_segments,
+    configure_environment,
+)
 from parakeet_nemo_asr_rocm.utils.constant import (
     DEFAULT_CHUNK_LEN_SEC,
     DEFAULT_STREAM_CHUNK_SEC,
 )
-
-from .file_processor import transcribe_file
-from .utils import compute_total_segments, configure_environment
 
 
 def _display_settings(  # pragma: no cover - formatting helper
@@ -72,7 +76,6 @@ def _display_settings(  # pragma: no cover - formatting helper
     table.add_row("Files", "Transcribing", f"{len(audio_files)} file(s)")
 
     console.print(table)
-
 
 
 def cli_transcribe(
@@ -192,21 +195,29 @@ def cli_transcribe(
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(code=1) from exc
 
-    total_segments = compute_total_segments(audio_files, chunk_len_sec, overlap_duration)
+    total_segments = compute_total_segments(
+        audio_files, chunk_len_sec, overlap_duration
+    )
 
-    progress_cm = nullcontext() if no_progress else Progress(
-        SpinnerColumn(),
-        BarColumn(bar_width=None),
-        TaskProgressColumn(),
-        TimeElapsedColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        transient=False,
+    progress_cm = (
+        nullcontext()
+        if no_progress
+        else Progress(
+            SpinnerColumn(),
+            BarColumn(bar_width=None),
+            TaskProgressColumn(),
+            TimeElapsedColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            transient=False,
+        )
     )
 
     created_files: List[Path] = []
     with progress_cm as progress:
-        main_task = None if no_progress else progress.add_task(
-            "Transcribing...", total=total_segments
+        main_task = (
+            None
+            if no_progress
+            else progress.add_task("Transcribing...", total=total_segments)
         )
         for file_idx, audio_path in enumerate(audio_files, start=1):
             output_path = transcribe_file(

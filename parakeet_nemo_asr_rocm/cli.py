@@ -21,8 +21,9 @@ from parakeet_nemo_asr_rocm.utils.constant import (
     DEFAULT_BATCH_SIZE,
     DEFAULT_CHUNK_LEN_SEC,
 )
+
 # Placeholder for lazy import; enables monkeypatching in tests.
-resolve_input_paths = None  # type: ignore[assignment]
+RESOLVE_INPUT_PATHS = None  # type: ignore[assignment]
 
 
 # Create the main Typer application instance
@@ -49,20 +50,11 @@ def main(
             "--version",
             help="Show the application's version and exit.",
             callback=version_callback,
-            is_eager=True,
-            is_flag=True,
+            is_eager=True,  # still OK
         ),
     ] = False,
-    watch: Annotated[
-        List[str] | None,
-        typer.Option(
-            "--watch",
-            help="Watch directory/pattern for new audio files and transcribe automatically.",
-        ),
-    ] = None,
 ):
     """Root command acts like `transcribe` when arguments are passed without subcommand."""
-    # Root invoked without subcommand ⇒ show help fast without heavy imports.
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
         raise typer.Exit()
@@ -77,12 +69,22 @@ def transcribe(
             show_default=False,
         ),
     ] = None,
+    # Inputs
+    watch: Annotated[
+        List[str] | None,
+        typer.Option(
+            "--watch",
+            help="Watch directory/pattern for new audio files and transcribe automatically.",
+        ),
+    ] = None,
+    # Model
     model_name: Annotated[
         str,
         typer.Option(
             "--model", help="Hugging Face Hub or local path to the NeMo ASR model."
         ),
     ] = "nvidia/parakeet-tdt-0.6b-v2",
+    # Outputs
     output_dir: Annotated[
         pathlib.Path,
         typer.Option(
@@ -108,13 +110,40 @@ def transcribe(
             ),
         ),
     ] = "{filename}",
-    batch_size: Annotated[
-        int, typer.Option(help="Batch size for transcription inference.")
-    ] = DEFAULT_BATCH_SIZE,
+    overwrite: Annotated[
+        bool,
+        typer.Option(
+            "--overwrite",
+            help="Overwrite existing output files instead of appending numbered suffixes.",
+        ),
+    ] = False,
+    # Timestamps and subtitles
+    word_timestamps: Annotated[
+        bool,
+        typer.Option(
+            "--word-timestamps",
+            help="Enable word-level timestamp generation.",
+        ),
+    ] = False,
+    highlight_words: Annotated[
+        bool,
+        typer.Option(
+            "--highlight-words",
+            help="Highlight each word in SRT/VTT outputs (e.g., bold).",
+        ),
+    ] = False,
+    # Chunking and streaming
     chunk_len_sec: Annotated[
         int,
         typer.Option(help="Segment length in seconds for chunked transcription."),
     ] = DEFAULT_CHUNK_LEN_SEC,
+    overlap_duration: Annotated[
+        int,
+        typer.Option(
+            "--overlap-duration",
+            help="Overlap between consecutive chunks in seconds (for long audio).",
+        ),
+    ] = 15,
     stream: Annotated[
         bool,
         typer.Option(
@@ -129,27 +158,6 @@ def transcribe(
             help="Chunk length in seconds when --stream is enabled (overrides default).",
         ),
     ] = 0,
-    overlap_duration: Annotated[
-        int,
-        typer.Option(
-            "--overlap-duration",
-            help="Overlap between consecutive chunks in seconds (for long audio).",
-        ),
-    ] = 15,
-    highlight_words: Annotated[
-        bool,
-        typer.Option(
-            "--highlight-words",
-            help="Highlight each word in SRT/VTT outputs (e.g., bold).",
-        ),
-    ] = False,
-    word_timestamps: Annotated[
-        bool,
-        typer.Option(
-            "--word-timestamps",
-            help="Enable word-level timestamp generation.",
-        ),
-    ] = False,
     merge_strategy: Annotated[
         str,
         typer.Option(
@@ -161,20 +169,28 @@ def transcribe(
             case_sensitive=False,
         ),
     ] = "lcs",
-    overwrite: Annotated[
+    # Performance
+    batch_size: Annotated[
+        int, typer.Option(help="Batch size for transcription inference.")
+    ] = DEFAULT_BATCH_SIZE,
+    fp16: Annotated[
         bool,
         typer.Option(
-            "--overwrite",
-            help="Overwrite existing output files instead of appending numbered suffixes.",
+            "--fp16",
+            help=(
+                "Enable half-precision (FP16) inference for faster processing on "
+                "compatible hardware."
+            ),
         ),
     ] = False,
-    verbose: Annotated[
+    fp32: Annotated[
         bool,
         typer.Option(
-            "--verbose",
-            help="Enable verbose output.",
+            "--fp32",
+            help="Force full-precision (FP32) inference. Default if no precision flag is provided.",
         ),
     ] = False,
+    # UX and logging
     no_progress: Annotated[
         bool,
         typer.Option(
@@ -189,28 +205,11 @@ def transcribe(
             help="Suppress console messages except the progress bar and final output.",
         ),
     ] = False,
-    fp32: Annotated[
+    verbose: Annotated[
         bool,
         typer.Option(
-            "--fp32",
-            help="Force full-precision (FP32) inference. Default if no precision flag is provided.",
-        ),
-    ] = False,
-    watch: Annotated[
-        List[str] | None,
-        typer.Option(
-            "--watch",
-            help="Watch directory/pattern for new audio files and transcribe automatically.",
-        ),
-    ] = None,
-    fp16: Annotated[
-        bool,
-        typer.Option(
-            "--fp16",
-            help=(
-                "Enable half-precision (FP16) inference for faster processing on "
-                "compatible hardware."
-            ),
+            "--verbose",
+            help="Enable verbose output.",
         ),
     ] = False,
 ):
@@ -227,15 +226,15 @@ def transcribe(
         raise typer.BadParameter("Provide AUDIO_FILES or --watch pattern(s).")
 
     # Expand provided audio file patterns now (for immediate run or watcher seed)
-    global resolve_input_paths  # pylint: disable=global-statement
-    if resolve_input_paths is None:
-        from parakeet_nemo_asr_rocm.utils.file_utils import (
+    global RESOLVE_INPUT_PATHS  # pylint: disable=global-statement
+    if RESOLVE_INPUT_PATHS is None:
+        from parakeet_nemo_asr_rocm.utils.file_utils import (  # pylint: disable=import-outside-toplevel
             resolve_input_paths as _resolve_input_paths,
-        )  # Lazy import to keep --help snappy.
+        )
 
-        resolve_input_paths = _resolve_input_paths
+        RESOLVE_INPUT_PATHS = _resolve_input_paths
 
-    resolved_paths = resolve_input_paths(audio_files)
+    resolved_paths = RESOLVE_INPUT_PATHS(audio_files)
 
     if watch:
         # Lazy import watcher to avoid unnecessary deps if not used
