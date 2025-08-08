@@ -33,6 +33,10 @@ def _display_settings(  # pragma: no cover - formatting helper
     word_timestamps: bool,
     highlight_words: bool,
     merge_strategy: str,
+    stabilize: bool,
+    demucs: bool,
+    vad: bool,
+    vad_threshold: float,
     overwrite: bool,
     quiet: bool,
     no_progress: bool,
@@ -66,6 +70,11 @@ def _display_settings(  # pragma: no cover - formatting helper
     table.add_row("Features", "Word Timestamps", str(word_timestamps))
     table.add_row("Features", "Highlight Words", str(highlight_words))
     table.add_row("Features", "Merge Strategy", merge_strategy)
+    table.add_row("Features", "Stabilize", str(stabilize))
+    if stabilize:
+        table.add_row("Features", "Demucs", str(demucs))
+        table.add_row("Features", "VAD", str(vad))
+        table.add_row("Features", "VAD Threshold", str(vad_threshold))
 
     table.add_row("Output", "Overwrite", str(overwrite))
     table.add_row("Output", "Quiet Mode", str(quiet))
@@ -93,6 +102,10 @@ def cli_transcribe(
     highlight_words: bool = False,
     word_timestamps: bool = False,
     merge_strategy: str = "lcs",
+    stabilize: bool = False,
+    demucs: bool = False,
+    vad: bool = False,
+    vad_threshold: float = 0.35,
     overwrite: bool = False,
     verbose: bool = False,
     quiet: bool = False,
@@ -117,6 +130,10 @@ def cli_transcribe(
         highlight_words: Highlight words in subtitle outputs when supported.
         word_timestamps: Include word-level timestamps in processing.
         merge_strategy: Strategy for merging overlapping word timestamps.
+        stabilize: Refine word timestamps using stable-ts when ``True``.
+        demucs: Enable Demucs denoising during stabilization.
+        vad: Enable voice activity detection during stabilization.
+        vad_threshold: VAD probability threshold when ``vad`` is enabled.
         overwrite: Overwrite existing output files if ``True``.
         verbose: Enable verbose logging output.
         quiet: Suppress non-error output when ``True``.
@@ -176,6 +193,10 @@ def cli_transcribe(
             word_timestamps,
             highlight_words,
             merge_strategy,
+            stabilize,
+            demucs,
+            vad,
+            vad_threshold,
             overwrite,
             quiet,
             no_progress,
@@ -234,6 +255,10 @@ def cli_transcribe(
                 highlight_words=highlight_words,
                 word_timestamps=word_timestamps,
                 merge_strategy=merge_strategy,
+                stabilize=stabilize,
+                demucs=demucs,
+                vad=vad,
+                vad_threshold=vad_threshold,
                 overwrite=overwrite,
                 verbose=verbose,
                 quiet=quiet,
