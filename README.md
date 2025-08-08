@@ -1,6 +1,6 @@
 # Parakeet-ROCm
 
-[![Version](https://img.shields.io/badge/Version-v0.5.1-informational)](./VERSIONS.md)
+[![Version](https://img.shields.io/badge/Version-v0.5.2-informational)](./VERSIONS.md)
 [![Python](https://img.shields.io/badge/Python-3.10-blue)](https://www.python.org)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)](LICENSE)
 [![ROCm](https://img.shields.io/badge/ROCm-6.4.1-red)](https://rocm.docs.amd.com/)
@@ -34,7 +34,7 @@ This project bridges the gap between NVIDIA's cutting-edge ASR models and AMD GP
 
 ## Badges
 
-[![Version](https://img.shields.io/badge/Version-v0.5.1-informational)](./VERSIONS.md)
+[![Version](https://img.shields.io/badge/Version-v0.5.2-informational)](./VERSIONS.md)
 [![Python](https://img.shields.io/badge/Python-3.10-blue)](https://www.python.org)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)](LICENSE)
 [![ROCm](https://img.shields.io/badge/ROCm-6.4.1-red)](https://rocm.docs.amd.com/)

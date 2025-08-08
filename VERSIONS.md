@@ -2,7 +2,8 @@
 
 ## Table of Contents
 
-- [v0.5.1 (Current)](#v051-current---08-08-2025)
+- [v0.5.2 (Current)](#v052-current---08-08-2025)
+- [v0.5.1](#v051---08-08-2025)
 - [v0.5.0](#v050---07-08-2025)
 - [v0.4.0](#v040---06-08-2025)
 - [v0.3.0](#v030---31-07-2025)
@@ -14,7 +15,29 @@
 
 ---
 
-## **v0.5.1** (Current) - *08-08-2025*
+## **v0.5.2** (Current) - *08-08-2025*
+
+### 🐛 **Patch Release – Testing and Docs**
+
+#### 🧪 Testing Improvements in v0.5.2
+
+- Added: Focused unit tests for timestamps modules to raise coverage
+  - `tests/test_refine.py`: SRT roundtrip, merging rules, gap enforcement, wrapping
+  - `tests/test_segmentation_core.py`: `split_lines()` and `segment_words()` constraints and long-sentence splits
+  - `tests/test_adapt_core.py`: Lightweight `adapt_nemo_hypotheses()` coverage via monkeypatching
+- Result: Overall coverage improved to ~83%
+
+#### 📝 Documentation in v0.5.2
+
+- Updated: Version badges in `README.md` and `project-overview.md`
+
+#### 📝 **Key Commits in v0.5.2**
+
+`9fce3e6`, `f2dffb2`, `b31cb0d`
+
+---
+
+## **v0.5.1** - *08-08-2025*
 
 ### 🐛 **Bug Fixes in v0.5.1**
 
