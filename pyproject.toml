@@ -53,6 +53,9 @@ dependencies = [
   "python-dotenv>=1.1.1",
   "typer>=0.16.0",
   "pydantic>=2.7.0",
+  "stable-ts-whisperless>=2.19.0",
+  "silero-vad>=5.1.2",
+  "demucs>=4.0.1",
 ]
 
 [project.optional-dependencies]

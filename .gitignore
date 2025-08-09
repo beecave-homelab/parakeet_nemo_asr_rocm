@@ -217,15 +217,21 @@ data/samples/*.m4a
 #.windsurf/rules/*.md
 #.windsurf/workflows/*.md
 
-# output/
+# Location for the default output/ folder
 output/*.txt
 output/*.srt
 output/*.json
 output/*.vtt
 .vscode/settings.json
 
+# Location for the --watch folder
 data/watch/*.wav
 data/watch/*.mp3
 data/watch/*.ogg
 data/watch/*.flac
 data/watch/*.m4a
+
+# Location for reports created with `scripts/srt_diff_report.py`
+data/test_results/*.md
+data/test_results/*.json
+data/output/
