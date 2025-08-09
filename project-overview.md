@@ -87,6 +87,7 @@ helpers for future extensions.
 Any media container that **FFmpeg** can decode is accepted out-of-the-box. The default extension allow-list includes common audio (`wav, mp3, aac, flac, ogg, opus, m4a, wma, aiff, alac, amr`) and video (`mp4, mkv, mov, avi, webm, flv, ts`) formats, but developers may extend `AUDIO_EXTENSIONS` in `utils/file_utils.py` if required.
 
 Decoding strategy:
+
 1. Try `soundfile` (`libsndfile`) directly – fast path for standard PCM containers.
 2. Fallback to **pydub + ffmpeg** to convert exotic formats to WAV for downstream processing. Decoding first attempts `libsndfile` (via `soundfile`) and transparently falls back to **pydub + ffmpeg** for formats not natively supported.
 
@@ -147,23 +148,28 @@ $ docker exec -it parakeet-asr-rocm parakeet-rocm /data/samples/sample.wav
 ### Options
 
 Inputs
+
 - `AUDIO_FILES` (argument): One or more paths or glob patterns
 - `--watch`: Watch directory/pattern for new files and transcribe automatically
 
 Model
+
 - `--model`: Model name/path (default: nvidia/parakeet-tdt-0.6b-v2)
 
 Outputs
+
 - `--output-dir`: Output directory (default: ./output)
 - `--output-format`: Output format: txt, srt, vtt, json (default: txt)
 - `--output-template`: Template for output filenames (`{parent}`, `{filename}`, `{index}`, `{date}`)
 - `--overwrite`: Overwrite existing files
 
 Timestamps and subtitles
+
 - `--word-timestamps`: Enable word-level timestamps
 - `--highlight-words`: Highlight words in SRT/VTT outputs
 
 Chunking and streaming
+
 - `--chunk-len-sec`: Segment length for chunked transcription (default: 30)
 - `--overlap-duration`: Overlap between chunks (default: 15)
 - `--stream`: Enable pseudo‑streaming mode (low‑latency small chunks)
@@ -171,15 +177,30 @@ Chunking and streaming
 - `--merge-strategy`: Merge overlapping chunks: `none`, `contiguous`, `lcs` (default: lcs)
 
 Performance
+
 - `--batch-size`: Batch size for inference (default: 1)
 - `--fp16` / `--fp32`: Precision control for inference
 
 UX and logging
+
 - `--no-progress`: Disable the Rich progress bar
 - `--quiet`: Suppress console output except progress bar
 - `--verbose`: Enable verbose logging
 
-## Advanced Features
+### Verbose diagnostics
+
+When `--verbose` is supplied, additional debug lines are emitted to aid troubleshooting and performance tuning:
+
+- [env] Effective configuration resolved via `utils/constant.py` (loaded once from `.env`): dependency log levels and key processing constants (e.g., `NEMO_LOG_LEVEL`, `TRANSFORMERS_VERBOSITY`, `CHUNK_LEN_SEC`, `STREAM_CHUNK_SEC`, `MAX_LINE_CHARS`, `MAX_LINES_PER_BLOCK`, `MAX_SEGMENT_DURATION_SEC`, `MIN_SEGMENT_DURATION_SEC`, `MAX_CPS`, `DISPLAY_BUFFER_SEC`).
+- [model] Device, dtype, and cache stats after model load.
+- [plan] Total planned segments for all inputs; per-file first few chunk ranges.
+- [file] Per-file stats (sample rate, duration, number of chunks, load time).
+- [asr] Batch transcription timing summary (counts and wall time).
+- [stable-ts] Stabilization path used and timing (with `--stabilize`, `--vad`, `--demucs`).
+- [output] Final output file name, whether overwrite was used, subtitle block count, and coverage range (`start→end`).
+- [timing] Overall wall-clock time for the command.
+
+### Advanced Features
 
 ### Long Audio Processing
 
@@ -201,9 +222,43 @@ Intelligent segmentation that respects:
 
 Automatic file renaming with numbered suffixes to prevent accidental overwrites. Use `--overwrite` to force replacement.
 
+### Stable-ts Integration
+
+Stable-ts (stable_whisper) is used to refine word timestamps when `--stabilize` is enabled. The integration follows the 2.7.0+ API:
+
+- Primary path uses `stable_whisper.transcribe_any(...)` to refine timestamps using the provided audio and options (e.g., `vad`, `demucs`).
+- If `transcribe_any` fails and legacy helpers (e.g., `postprocess_word_timestamps`) are available, they are used as a fallback.
+- On installations where legacy helpers are not present (typical for 2.7.0+), the code gracefully returns the original timestamps rather than erroring.
+
+This ensures compatibility across stable-ts versions while preferring the modern API you would use for “any ASR”.
+
 ## Next steps / TODO
 
 1. Add streaming transcription support (if feasible)
 2. Performance optimizations for very long audio
 3. Additional output format support
 4. Batch processing optimizations
+
+---
+
+## SRT Diff Report & Scoring
+
+The utility script `scripts/srt_diff_report.py` compares two SRT files (e.g., original vs. refined) and produces:
+
+- A Markdown diff table with cue counts, duration stats, and CPS.
+- A normalized readability score (0–100) per file plus Δ score (higher is better).
+- Violation rates for key readability constraints (short/long durations, high CPS, line/block overflows, overlaps).
+- Optional JSON output for automation and top‑N sample violations per category.
+
+### Usage
+
+```bash
+python -m scripts.srt_diff_report original.srt refined.srt [-o report.md] [--json] [--json-only] [--show-violations N]
+```
+
+### Notes
+
+- Thresholds (e.g., `MIN_SEGMENT_DURATION_SEC`, `MAX_SEGMENT_DURATION_SEC`, `MAX_CPS`, `MAX_LINE_CHARS`, `MAX_BLOCK_CHARS`) are imported from `parakeet_nemo_asr_rocm.utils.constant`, ensuring alignment with environment configuration.
+- JSON schema includes `original`, `refined`, and `delta` sections; when `--show-violations` is provided, top offenders are listed per category for both files.
+- Reports always include the effective environment thresholds in both Markdown and JSON outputs (section/table "Environment (Thresholds)"; JSON key `env`).
+- When `--json` is provided and `--output` ends with `.json`, the tool writes the JSON payload directly to that file (suppressing Markdown output). Use `--json-only` to emit only JSON to stdout.
