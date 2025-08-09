@@ -36,3 +36,27 @@ def test_refine_word_timestamps(monkeypatch, tmp_path):
     assert [w.word for w in refined] == ["hello", "world"]
     assert refined[0].start == 0.0
     assert refined[-1].end == 1.0
+
+
+def test_refine_word_timestamps_no_legacy(monkeypatch, tmp_path):
+    """Gracefully degrades when legacy postprocess function is absent.
+
+    Simulates stable_whisper exposing only transcribe_any (which raises),
+    but lacking postprocess_word_timestamps. Should return original words.
+    """
+    dummy = types.SimpleNamespace()
+
+    def _transcribe_any(fn, audio, **kwargs):  # noqa: ARG001
+        raise RuntimeError("boom")
+
+    dummy.transcribe_any = _transcribe_any
+    # Note: intentionally DO NOT set postprocess_word_timestamps
+    monkeypatch.setitem(sys.modules, "stable_whisper", dummy)
+
+    audio = tmp_path / "a.wav"
+    audio.write_bytes(b"fake")
+
+    words = [Word(word="test", start=0.0, end=1.0, score=None)]
+    refined = refine_word_timestamps(words, audio)
+    # Without legacy API, we should get the original words back
+    assert refined == words
