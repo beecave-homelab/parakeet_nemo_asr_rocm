@@ -188,13 +188,36 @@ def transcribe_file(
     Returns:
         Path to the created file or ``None`` if processing failed.
     """
+    import time  # pylint: disable=import-outside-toplevel
     import typer  # pylint: disable=import-outside-toplevel
 
+    t_load = time.perf_counter()
     wav, _sr = load_audio(audio_path, DEFAULT_SAMPLE_RATE)
+    load_elapsed = time.perf_counter() - t_load
+    duration_sec = len(wav) / float(_sr) if _sr else 0.0
     segments = segment_waveform(wav, _sr, chunk_len_sec, overlap_duration)
+    if verbose and not quiet:
+        typer.echo(
+            f"[file] {audio_path.name}: sr={_sr}, dur={duration_sec:.2f}s, segments={len(segments)}, chunk={chunk_len_sec}s, overlap={overlap_duration}s, t_load={load_elapsed:.2f}s"
+        )
+        # show first few segment ranges
+        preview = 3
+        for i, (_seg, off) in enumerate(segments[:preview]):
+            start = off
+            end = off + chunk_len_sec
+            typer.echo(f"[plan] seg{i}: {start:.2f}s→{end:.2f}s")
+
+    t_asr = time.perf_counter()
     hypotheses, texts = _transcribe_batches(
         model, segments, batch_size, word_timestamps, progress, main_task, no_progress
     )
+    asr_elapsed = time.perf_counter() - t_asr
+    if verbose and not quiet:
+        n_hyps = len(hypotheses) if word_timestamps else 0
+        n_txt = len(texts) if not word_timestamps else 0
+        typer.echo(
+            f"[asr] batches done: hyps={n_hyps}, texts={n_txt}, t_asr={asr_elapsed:.2f}s"
+        )
     if word_timestamps:
         if not hypotheses:
             if not quiet:
@@ -208,6 +231,7 @@ def transcribe_file(
         )
         if stabilize:
             try:
+                t_stab = time.perf_counter()
                 refined = refine_word_timestamps(
                     aligned_result.word_segments,
                     audio_path,
@@ -215,11 +239,16 @@ def transcribe_file(
                     vad=vad,
                     vad_threshold=vad_threshold,
                 )
+                stab_elapsed = time.perf_counter() - t_stab
                 new_segments = segment_words(refined)
                 aligned_result = AlignedResult(
                     segments=new_segments,
                     word_segments=refined,
                 )
+                if verbose and not quiet:
+                    typer.echo(
+                        f"[stable-ts] api=transcribe_any demucs={demucs} vad={vad} thr={vad_threshold} t_stab={stab_elapsed:.2f}s"
+                    )
             except RuntimeError as exc:
                 if verbose and not quiet:
                     typer.echo(f"Stabilization skipped: {exc}", err=True)
@@ -267,4 +296,16 @@ def transcribe_file(
     base_output_path = output_dir / f"{filename_part}.{output_format.lower()}"
     output_path = get_unique_filename(base_output_path, overwrite=overwrite)
     output_path.write_text(formatted_text, encoding="utf-8")
+    if verbose and not quiet:
+        # Report coverage window if segments are present
+        if aligned_result.segments:
+            first_ts = aligned_result.segments[0].start
+            last_ts = aligned_result.segments[-1].end
+            typer.echo(
+                f"[output] path={output_path.name} overwrite={overwrite} blocks={len(aligned_result.segments)} range={first_ts:.2f}s→{last_ts:.2f}s"
+            )
+        else:
+            typer.echo(
+                f"[output] path={output_path.name} overwrite={overwrite} blocks=0"
+            )
     return output_path

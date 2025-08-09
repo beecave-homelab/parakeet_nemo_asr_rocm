@@ -16,6 +16,14 @@ from parakeet_nemo_asr_rocm.transcription.utils import (
 from parakeet_nemo_asr_rocm.utils.constant import (
     DEFAULT_CHUNK_LEN_SEC,
     DEFAULT_STREAM_CHUNK_SEC,
+    NEMO_LOG_LEVEL,
+    TRANSFORMERS_VERBOSITY,
+    MAX_LINE_CHARS,
+    MAX_LINES_PER_BLOCK,
+    MAX_SEGMENT_DURATION_SEC,
+    MIN_SEGMENT_DURATION_SEC,
+    MAX_CPS,
+    DISPLAY_BUFFER_SEC,
 )
 
 
@@ -154,6 +162,8 @@ def cli_transcribe(
         TimeElapsedColumn,
     )
 
+    import time  # pylint: disable=import-outside-toplevel
+
     from parakeet_nemo_asr_rocm.formatting import get_formatter
     from parakeet_nemo_asr_rocm.models.parakeet import get_model
 
@@ -177,6 +187,20 @@ def cli_transcribe(
             typer.echo(
                 f"[stream] Using chunk_len_sec={chunk_len_sec}, overlap_duration={overlap_duration}"
             )
+
+    if verbose and not quiet:
+        # Show effective configuration resolved via utils.constant (loaded once from .env)
+        typer.echo(
+            f"[env] NEMO_LOG_LEVEL={NEMO_LOG_LEVEL}, TRANSFORMERS_VERBOSITY={TRANSFORMERS_VERBOSITY}"
+        )
+        typer.echo(
+            f"[env] CHUNK_LEN_SEC={DEFAULT_CHUNK_LEN_SEC}, STREAM_CHUNK_SEC={DEFAULT_STREAM_CHUNK_SEC}, "
+            f"MAX_LINE_CHARS={MAX_LINE_CHARS}, MAX_LINES_PER_BLOCK={MAX_LINES_PER_BLOCK}"
+        )
+        typer.echo(
+            f"[env] MAX_SEGMENT_DURATION_SEC={MAX_SEGMENT_DURATION_SEC}, MIN_SEGMENT_DURATION_SEC={MIN_SEGMENT_DURATION_SEC}, "
+            f"MAX_CPS={MAX_CPS}, DISPLAY_BUFFER_SEC={DISPLAY_BUFFER_SEC}"
+        )
 
     if not quiet:
         _display_settings(
@@ -207,8 +231,19 @@ def cli_transcribe(
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    t0 = time.perf_counter()
     model = get_model(model_name)
     model = model.half() if fp16 else model.float()
+    if verbose and not quiet:
+        try:
+            device = next(model.parameters()).device
+            dtype = next(model.parameters()).dtype
+            cache_info = get_model.cache_info()  # type: ignore[attr-defined]
+            typer.echo(
+                f"[model] device={device}, dtype={dtype}, cache={cache_info}"
+            )
+        except Exception:  # pragma: no cover
+            pass
 
     try:
         formatter = get_formatter(output_format)
@@ -219,6 +254,8 @@ def cli_transcribe(
     total_segments = compute_total_segments(
         audio_files, chunk_len_sec, overlap_duration
     )
+    if verbose and not quiet:
+        typer.echo(f"[plan] total_segments={total_segments}")
 
     progress_cm = (
         nullcontext()
@@ -272,5 +309,7 @@ def cli_transcribe(
         for p in created_files:
             typer.echo(f'Created "{p}"')
     if verbose and not quiet:
+        elapsed = time.perf_counter() - t0
+        typer.echo(f"[timing] total_wall={elapsed:.2f}s")
         typer.echo("Done.")
     return created_files

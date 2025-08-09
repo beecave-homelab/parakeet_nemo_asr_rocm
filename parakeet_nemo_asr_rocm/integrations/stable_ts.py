@@ -72,14 +72,21 @@ def refine_word_timestamps(
         )
         segments_out = result.get("segments", []) if isinstance(result, dict) else []
     except Exception:  # pragma: no cover - fallback path
-        processed = stable_whisper.postprocess_word_timestamps(
-            {"segments": [segment]},
-            audio=audio_path,
-            **options,
-        )
-        segments_out = (
-            processed.get("segments", []) if isinstance(processed, dict) else []
-        )
+        # Stable-ts 2.7.0+ recommends using transcribe_any; some legacy helper
+        # functions (e.g. postprocess_word_timestamps) may not exist anymore.
+        # If the legacy function is present, use it; otherwise, gracefully
+        # fall back to returning the original words.
+        if hasattr(stable_whisper, "postprocess_word_timestamps"):
+            processed = stable_whisper.postprocess_word_timestamps(
+                {"segments": [segment]},
+                audio=audio_path,
+                **options,
+            )
+            segments_out = (
+                processed.get("segments", []) if isinstance(processed, dict) else []
+            )
+        else:
+            segments_out = []
 
     refined: List[Word] = []
     for seg in segments_out:
