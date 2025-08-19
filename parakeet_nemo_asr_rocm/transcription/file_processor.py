@@ -1,5 +1,7 @@
 """Per-file transcription processing utilities."""
 
+# pylint: disable=import-outside-toplevel
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -10,13 +12,13 @@ from parakeet_nemo_asr_rocm.chunking import (
     merge_longest_contiguous,
     segment_waveform,
 )
+from parakeet_nemo_asr_rocm.integrations.stable_ts import refine_word_timestamps
 from parakeet_nemo_asr_rocm.timestamps.models import AlignedResult, Segment, Word
 from parakeet_nemo_asr_rocm.timestamps.segmentation import segment_words
 from parakeet_nemo_asr_rocm.timestamps.word_timestamps import get_word_timestamps
 from parakeet_nemo_asr_rocm.utils.audio_io import DEFAULT_SAMPLE_RATE, load_audio
 from parakeet_nemo_asr_rocm.utils.constant import MAX_CPS, MAX_LINE_CHARS
 from parakeet_nemo_asr_rocm.utils.file_utils import get_unique_filename
-from parakeet_nemo_asr_rocm.integrations.stable_ts import refine_word_timestamps
 
 from .utils import calc_time_stride
 
@@ -189,6 +191,7 @@ def transcribe_file(
         Path to the created file or ``None`` if processing failed.
     """
     import time  # pylint: disable=import-outside-toplevel
+
     import typer  # pylint: disable=import-outside-toplevel
 
     t_load = time.perf_counter()
@@ -198,7 +201,10 @@ def transcribe_file(
     segments = segment_waveform(wav, _sr, chunk_len_sec, overlap_duration)
     if verbose and not quiet:
         typer.echo(
-            f"[file] {audio_path.name}: sr={_sr}, dur={duration_sec:.2f}s, segments={len(segments)}, chunk={chunk_len_sec}s, overlap={overlap_duration}s, t_load={load_elapsed:.2f}s"
+            "[file] "
+            f"{audio_path.name}: sr={_sr}, dur={duration_sec:.2f}s, "
+            f"segments={len(segments)}, chunk={chunk_len_sec}s, "
+            f"overlap={overlap_duration}s, t_load={load_elapsed:.2f}s"
         )
         # show first few segment ranges
         preview = 3
@@ -231,6 +237,69 @@ def transcribe_file(
         )
         if stabilize:
             try:
+                # Pre-stabilization diagnostics
+                pre_words: List[Word] = list(aligned_result.word_segments or [])
+                if verbose and not quiet:
+                    # Detect package versions without importing heavy modules
+                    try:  # Python 3.10+: importlib.metadata
+                        from importlib.metadata import (  # type: ignore
+                            PackageNotFoundError,
+                            version,
+                        )
+                    except ImportError:  # pragma: no cover - extremely unlikely
+                        version = None  # type: ignore
+                        PackageNotFoundError = Exception  # type: ignore
+
+                    sw_ver = None
+                    demucs_ver = None
+                    vad_ver = None
+                    if version is not None:
+                        try:
+                            sw_ver = version("stable-ts")
+                        except PackageNotFoundError:
+                            sw_ver = None
+                        if sw_ver is None:
+                            try:
+                                sw_ver = version("stable_whisper")
+                            except PackageNotFoundError:
+                                sw_ver = None
+                        if demucs:
+                            try:
+                                demucs_ver = version("demucs")
+                            except PackageNotFoundError:
+                                demucs_ver = None
+                        if vad:
+                            try:
+                                vad_ver = version("silero-vad")
+                            except PackageNotFoundError:
+                                vad_ver = None
+
+                    # Echo options about to be used by stable-ts
+                    typer.echo(
+                        "[stable-ts] preparing: "
+                        f"version={sw_ver or 'unknown'} "
+                        f"options={{'demucs': {demucs}, 'vad': {vad}, "
+                        f"'vad_threshold': {vad_threshold if vad else None}}}"
+                    )
+                    if demucs:
+                        typer.echo(
+                            "[demucs] enabled: "
+                            f"package_version={demucs_ver or 'unknown'}"
+                        )
+                    if vad:
+                        typer.echo(
+                            f"[vad] enabled: threshold={vad_threshold:.2f} "
+                            f"package_version={vad_ver or 'unknown'}"
+                        )
+                    if demucs or vad:
+                        # We default to stronger silence-suppression-based realignment
+                        # so that Demucs/VAD effects are observable during stabilization.
+                        typer.echo(
+                            "[stable-ts] realign: suppress_silence=True "
+                            "suppress_word_ts=True q_levels=10 k_size=3 "
+                            "min_word_dur=0.03 force_order=True"
+                        )
+
                 t_stab = time.perf_counter()
                 refined = refine_word_timestamps(
                     aligned_result.word_segments,
@@ -238,6 +307,7 @@ def transcribe_file(
                     demucs=demucs,
                     vad=vad,
                     vad_threshold=vad_threshold,
+                    verbose=bool(verbose and not quiet),
                 )
                 stab_elapsed = time.perf_counter() - t_stab
                 new_segments = segment_words(refined)
@@ -246,9 +316,44 @@ def transcribe_file(
                     word_segments=refined,
                 )
                 if verbose and not quiet:
+                    # Keep existing summary line
                     typer.echo(
-                        f"[stable-ts] api=transcribe_any demucs={demucs} vad={vad} thr={vad_threshold} t_stab={stab_elapsed:.2f}s"
+                        "[stable-ts] api=transcribe_any "
+                        f"demucs={demucs} vad={vad} "
+                        f"thr={vad_threshold} t_stab={stab_elapsed:.2f}s"
                     )
+                    # Post-stabilization stats to help verify VAD/Demucs effects
+                    n_pre = len(pre_words)
+                    n_post = len(refined)
+                    common = min(n_pre, n_post)
+                    changed = 0
+                    for i in range(common):
+                        ds = abs(refined[i].start - pre_words[i].start)
+                        de = abs(refined[i].end - pre_words[i].end)
+                        if ds > 0.02 or de > 0.02:  # consider >20ms as a change
+                            changed += 1
+                    pct_changed = (100.0 * changed / common) if common else 0.0
+                    start_shift = (
+                        (refined[0].start - pre_words[0].start)
+                        if (n_pre and n_post)
+                        else 0.0
+                    )
+                    end_shift = (
+                        (refined[-1].end - pre_words[-1].end)
+                        if (n_pre and n_post)
+                        else 0.0
+                    )
+                    words_removed = max(0, (n_pre - n_post)) if n_pre and n_post else 0
+                    typer.echo(
+                        "[stable-ts] result: "
+                        f"segments={len(new_segments)} "
+                        f"words_pre={n_pre} words_post={n_post} "
+                        f"changed≈{changed} ({pct_changed:.1f}%) "
+                        f"start_shift={start_shift:+.2f}s "
+                        f"end_shift={end_shift:+.2f}s"
+                    )
+                    if vad:
+                        typer.echo(f"[vad] post-stab: words_removed={words_removed}")
             except RuntimeError as exc:
                 if verbose and not quiet:
                     typer.echo(f"Stabilization skipped: {exc}", err=True)
@@ -278,7 +383,9 @@ def transcribe_file(
                 else "OK"
             )
             typer.echo(
-                f"Seg {i}: {chars} chars, {dur:.2f}s, {cps:.1f} cps, {lines} lines [{flag}] -> '{seg.text.replace(chr(10), ' | ')}'"
+                f"Seg {i}: {chars} chars, {dur:.2f}s, {cps:.1f} cps, "
+                f"{lines} lines [{flag}] -> '"
+                f"{seg.text.replace(chr(10), ' | ')}'"
             )
         typer.echo("------------------------------\n")
 
@@ -302,7 +409,10 @@ def transcribe_file(
             first_ts = aligned_result.segments[0].start
             last_ts = aligned_result.segments[-1].end
             typer.echo(
-                f"[output] path={output_path.name} overwrite={overwrite} blocks={len(aligned_result.segments)} range={first_ts:.2f}s→{last_ts:.2f}s"
+                "[output] "
+                f"path={output_path.name} overwrite={overwrite} "
+                f"blocks={len(aligned_result.segments)} "
+                f"range={first_ts:.2f}s→{last_ts:.2f}s"
             )
         else:
             typer.echo(

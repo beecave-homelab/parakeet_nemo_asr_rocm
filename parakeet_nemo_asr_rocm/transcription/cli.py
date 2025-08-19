@@ -1,13 +1,26 @@
 """CLI-facing transcription orchestration."""
 
-# pylint: disable=import-outside-toplevel
-
 from __future__ import annotations
 
+import time
 from contextlib import nullcontext
 from pathlib import Path
 from typing import List, Sequence
 
+import typer
+from rich.console import Console
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TaskProgressColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
+from rich.table import Table
+
+from parakeet_nemo_asr_rocm.formatting import get_formatter
+from parakeet_nemo_asr_rocm.models.parakeet import get_model
 from parakeet_nemo_asr_rocm.transcription.file_processor import transcribe_file
 from parakeet_nemo_asr_rocm.transcription.utils import (
     compute_total_segments,
@@ -16,14 +29,8 @@ from parakeet_nemo_asr_rocm.transcription.utils import (
 from parakeet_nemo_asr_rocm.utils.constant import (
     DEFAULT_CHUNK_LEN_SEC,
     DEFAULT_STREAM_CHUNK_SEC,
-    NEMO_LOG_LEVEL,
-    TRANSFORMERS_VERBOSITY,
-    MAX_LINE_CHARS,
-    MAX_LINES_PER_BLOCK,
     MAX_SEGMENT_DURATION_SEC,
-    MIN_SEGMENT_DURATION_SEC,
-    MAX_CPS,
-    DISPLAY_BUFFER_SEC,
+    NEMO_LOG_LEVEL,
 )
 
 
@@ -52,9 +59,6 @@ def _display_settings(  # pragma: no cover - formatting helper
     fp32: bool,
 ) -> None:
     """Display CLI settings via rich table."""
-    from rich.console import Console
-    from rich.table import Table
-
     console = Console()
     table = Table(title="CLI Settings", show_header=True, header_style="bold magenta")
     table.add_column("Category", style="cyan", no_wrap=True)
@@ -152,20 +156,6 @@ def cli_transcribe(
     Returns:
         List of paths to created output files.
     """
-    import typer
-    from rich.progress import (
-        BarColumn,
-        Progress,
-        SpinnerColumn,
-        TaskProgressColumn,
-        TextColumn,
-        TimeElapsedColumn,
-    )
-
-    import time  # pylint: disable=import-outside-toplevel
-
-    from parakeet_nemo_asr_rocm.formatting import get_formatter
-    from parakeet_nemo_asr_rocm.models.parakeet import get_model
 
     configure_environment(verbose)
 
@@ -191,15 +181,20 @@ def cli_transcribe(
     if verbose and not quiet:
         # Show effective configuration resolved via utils.constant (loaded once from .env)
         typer.echo(
-            f"[env] NEMO_LOG_LEVEL={NEMO_LOG_LEVEL}, TRANSFORMERS_VERBOSITY={TRANSFORMERS_VERBOSITY}"
+            f"[env] NEMO_LOG_LEVEL={NEMO_LOG_LEVEL}, "
+            "TRANSFORMERS_VERBOSITY={TRANSFORMERS_VERBOSITY}"
         )
         typer.echo(
-            f"[env] CHUNK_LEN_SEC={DEFAULT_CHUNK_LEN_SEC}, STREAM_CHUNK_SEC={DEFAULT_STREAM_CHUNK_SEC}, "
-            f"MAX_LINE_CHARS={MAX_LINE_CHARS}, MAX_LINES_PER_BLOCK={MAX_LINES_PER_BLOCK}"
+            f"[env] CHUNK_LEN_SEC={DEFAULT_CHUNK_LEN_SEC}, "
+            "STREAM_CHUNK_SEC={DEFAULT_STREAM_CHUNK_SEC}, "
+            "MAX_LINE_CHARS={MAX_LINE_CHARS}, "
+            "MAX_LINES_PER_BLOCK={MAX_LINES_PER_BLOCK}"
         )
         typer.echo(
-            f"[env] MAX_SEGMENT_DURATION_SEC={MAX_SEGMENT_DURATION_SEC}, MIN_SEGMENT_DURATION_SEC={MIN_SEGMENT_DURATION_SEC}, "
-            f"MAX_CPS={MAX_CPS}, DISPLAY_BUFFER_SEC={DISPLAY_BUFFER_SEC}"
+            f"[env] MAX_SEGMENT_DURATION_SEC={MAX_SEGMENT_DURATION_SEC}, "
+            "MIN_SEGMENT_DURATION_SEC={MIN_SEGMENT_DURATION_SEC}, "
+            "MAX_CPS={MAX_CPS}, "
+            "DISPLAY_BUFFER_SEC={DISPLAY_BUFFER_SEC}"
         )
 
     if not quiet:
@@ -239,9 +234,7 @@ def cli_transcribe(
             device = next(model.parameters()).device
             dtype = next(model.parameters()).dtype
             cache_info = get_model.cache_info()  # type: ignore[attr-defined]
-            typer.echo(
-                f"[model] device={device}, dtype={dtype}, cache={cache_info}"
-            )
+            typer.echo(f"[model] device={device}, dtype={dtype}, cache={cache_info}")
         except Exception:  # pragma: no cover
             pass
 
