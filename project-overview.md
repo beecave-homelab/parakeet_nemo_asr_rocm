@@ -7,10 +7,12 @@ This repository provides a containerised, GPU-accelerated Automatic Speech Recog
 ## Table of Contents
 
 - [Directory layout](#directory-layout)
+- [Audio / video format support](#audio--video-format-support)
+- [Configuration & environment variables](#configuration--environment-variables)
 - [Key technology choices](#key-technology-choices)
 - [Build & run (quick)](#build--run-quick)
-- [Configuration & environment variables](#configuration--environment-variables)
-- [Next steps / TODO](#next-steps--todo)
+- [CLI Features](#cli-features)
+- [SRT Diff Report & Scoring](#srt-diff-report--scoring)
 
 ---
 
@@ -76,6 +78,59 @@ parakeet_nemo_asr_rocm/
     ├── test_segmentation_and_formatters.py
     └── test_file_utils.py      # Tests for file utilities
 ```
+
+### Helper Script: transcribe_three.sh
+
+A convenience wrapper to run three common transcription variants for a single input file:
+
+```bash
+bash scripts/transcribe_three.sh <audio_file>
+```
+
+This will generate SRT outputs in:
+
+- `data/output/default/`
+- `data/output/stabilize/` (with `--stabilize`)
+- `data/output/stabilize_vad_demucs/` (with `--stabilize --vad --demucs`)
+
+Notes:
+
+- The script prefers `pdm run parakeet-rocm` when PDM is installed; otherwise it calls `parakeet-rocm` directly.
+- Word timestamps and SRT output are enabled for all three runs.
+
+### Unified Helper: transcribe_and_diff.sh
+
+Run three transcription variants and then compare all pairwise SRT diffs, or run either step alone.
+
+```bash
+# Both steps (default): transcribe 3 variants then produce Markdown+JSON diffs
+bash scripts/transcribe_and_diff.sh <audio_file>
+
+# Transcribe only
+bash scripts/transcribe_and_diff.sh --transcribe <audio_file>
+
+# Report only (requires SRTs present)
+bash scripts/transcribe_and_diff.sh --report <audio_file>
+
+# Include top-N violations in reports and choose output directory
+bash scripts/transcribe_and_diff.sh --report --show-violations 5 --out-dir data/test_results/ <audio_file>
+```
+
+### Outputs
+
+- Transcriptions written to:
+  - `data/output/default/`
+  - `data/output/stabilize/`
+  - `data/output/stabilize_vad_demucs/`
+- Diff reports (Markdown and JSON) written to `data/test_results/` by default, with filenames like:
+  - `srt_diff_default_vs_stabilize_<stem>.{md,json}`
+  - `srt_diff_default_vs_stabilize_vad_demucs_<stem>.{md,json}`
+  - `srt_diff_stabilize_vs_stabilize_vad_demucs_<stem>.{md,json}`
+
+### Notes
+
+- Uses `pdm run` where available. For diffing it calls `python -m scripts.srt_diff_report`, avoiding reliance on a global console entry.
+- `--show-violations N` is forwarded to the diff command.
 
 The `transcription` package isolates environment configuration, CLI
 orchestration, and per-file processing. This separation of concerns keeps
@@ -197,6 +252,14 @@ When `--verbose` is supplied, additional debug lines are emitted to aid troubles
 - [file] Per-file stats (sample rate, duration, number of chunks, load time).
 - [asr] Batch transcription timing summary (counts and wall time).
 - [stable-ts] Stabilization path used and timing (with `--stabilize`, `--vad`, `--demucs`).
+- [stable-ts] preparing: shows detected `stable-ts` version and exact options passed to stabilization, e.g. `options={'denoiser': 'demucs'|None, 'vad': True|False, 'vad_threshold': <float or None>}`.
+- [stable-ts] preparing: shows detected stable-ts version (tries both distributions: `stable-ts` then `stable_whisper`) and exact options passed to stabilization, e.g. `options={'demucs': True|False, 'vad': True|False, 'vad_threshold': <float or None>}`.
+- [stable-ts] verbose forwarding: when `--verbose` is active (and not `--quiet`), the app passes `verbose=True` into stable-ts so it can emit its own internal preprocessing logs (e.g., Demucs/VAD steps).
+- [demucs] enabled: prints detected Demucs package version when `--demucs` is active.
+- [vad] enabled: prints Silero-VAD package version and chosen threshold when `--vad` is active.
+- [stable-ts] result: post-stabilization summary with `segments`, `words_pre` vs `words_post`, approximate words `changed` and percentage, plus overall `start_shift`/`end_shift` of the first/last word. Useful to verify whether stabilization (incl. VAD/Demucs) adjusted timings.
+- [vad] post-stab: `words_removed=<N>` when VAD is active to indicate how many words were suppressed by VAD during stabilization.
+- [stable-ts] realign defaults: when `--demucs` or `--vad` is set, stabilization enables silence-suppression realignment by default (`suppress_silence=True`, `suppress_word_ts=True`, `q_levels=10`, `k_size=3`, `min_word_dur=0.03`, `force_order=True`). This aims to make Demucs/VAD effects observable. The exact values may be tuned in future.
 - [output] Final output file name, whether overwrite was used, subtitle block count, and coverage range (`start→end`).
 - [timing] Overall wall-clock time for the command.
 
@@ -226,18 +289,11 @@ Automatic file renaming with numbered suffixes to prevent accidental overwrites.
 
 Stable-ts (stable_whisper) is used to refine word timestamps when `--stabilize` is enabled. The integration follows the 2.7.0+ API:
 
-- Primary path uses `stable_whisper.transcribe_any(...)` to refine timestamps using the provided audio and options (e.g., `vad`, `demucs`).
+- Primary path uses `stable_whisper.transcribe_any(...)` to refine timestamps using the provided audio and options (e.g., `vad`, `demucs`). We pass the audio path positionally with `audio_type='str'` and `regroup=True` to ensure reliable preprocessing (VAD/Demucs) across versions.
 - If `transcribe_any` fails and legacy helpers (e.g., `postprocess_word_timestamps`) are available, they are used as a fallback.
 - On installations where legacy helpers are not present (typical for 2.7.0+), the code gracefully returns the original timestamps rather than erroring.
 
 This ensures compatibility across stable-ts versions while preferring the modern API you would use for “any ASR”.
-
-## Next steps / TODO
-
-1. Add streaming transcription support (if feasible)
-2. Performance optimizations for very long audio
-3. Additional output format support
-4. Batch processing optimizations
 
 ---
 
@@ -247,18 +303,56 @@ The utility script `scripts/srt_diff_report.py` compares two SRT files (e.g., or
 
 - A Markdown diff table with cue counts, duration stats, and CPS.
 - A normalized readability score (0–100) per file plus Δ score (higher is better).
-- Violation rates for key readability constraints (short/long durations, high CPS, line/block overflows, overlaps).
+- Violation rates for key readability constraints:
+  - Short/Long durations (`duration_under`, `duration_over`)
+  - CPS over/under thresholds (`cps_over`, `cps_under`)
+  - Line too long and too many lines per block (`line_over`, `lines_per_block_over`)
+  - Block character limits – soft and hard (`block_over_soft`, `block_over_hard`; legacy `block_over` maps to hard)
+  - Overlap presence and severity (`overlaps`, `overlap_severity`)
+  - Gaps under display buffer (butt joins) (`gap_under_buffer`)
+- A penalty breakdown table in Markdown showing per‑category weights, penalties, and contribution deltas (`duration`, `cps`, `line`, `block`, `hygiene`).
 - Optional JSON output for automation and top‑N sample violations per category.
+- Percentile statistics (P50/P90/P95) for cue duration and CPS, shown in Markdown and included in JSON.
 
-### Usage
+### Usage of SRT Diff Report
 
 ```bash
-python -m scripts.srt_diff_report original.srt refined.srt [-o report.md] [--json] [--json-only] [--show-violations N]
+python -m scripts.srt_diff_report \
+  original.srt refined.srt \
+  [--output-format <markdown|json>] [-o report.{md|json}] [--show-violations N] \
+  [--weights "duration=0.35,cps=0.35,line=0.15,block=0.10,hygiene=0.05"] \
+  [--fail-below-score <0..100>] [--fail-delta-below <float>]
 ```
 
-### Notes
+### Notes on SRT Diff Report
 
-- Thresholds (e.g., `MIN_SEGMENT_DURATION_SEC`, `MAX_SEGMENT_DURATION_SEC`, `MAX_CPS`, `MAX_LINE_CHARS`, `MAX_BLOCK_CHARS`) are imported from `parakeet_nemo_asr_rocm.utils.constant`, ensuring alignment with environment configuration.
-- JSON schema includes `original`, `refined`, and `delta` sections; when `--show-violations` is provided, top offenders are listed per category for both files.
+- Thresholds (e.g., `MIN_SEGMENT_DURATION_SEC`, `MAX_SEGMENT_DURATION_SEC`, `MIN_CPS`, `MAX_CPS`, `MAX_LINE_CHARS`, `MAX_LINES_PER_BLOCK`, `MAX_BLOCK_CHARS`, `MAX_BLOCK_CHARS_SOFT`, `DISPLAY_BUFFER_SEC`) are imported from `parakeet_nemo_asr_rocm.utils.constant`, ensuring alignment with environment configuration and the environment‑variables policy.
+- JSON schema v1.1:
+  - `schema_version`: "1.1"
+  - `generated_at`: ISO‑8601 timestamp
+  - `inputs`: paths of `original` and `refined`
+  - `env`: effective thresholds (same as shown in Markdown "Environment (Thresholds)")
+  - `original` / `refined`: `score` plus `counts`, `rates`, `aggregates`, `percentiles`, and `per_cue` details
+  - `delta`: `score` and cue count delta
+  - `score_breakdown`: `{ weights, original, refined }` where each category exposes `{ weight, penalty, contribution }`
+  - `violations` (optional; set when `--show-violations N` > 0): top‑N per‑category lists for both `original` and `refined`, each with `{index, factor, detail}`
 - Reports always include the effective environment thresholds in both Markdown and JSON outputs (section/table "Environment (Thresholds)"; JSON key `env`).
-- When `--json` is provided and `--output` ends with `.json`, the tool writes the JSON payload directly to that file (suppressing Markdown output). Use `--json-only` to emit only JSON to stdout.
+- `--show-violations N` also adds two Markdown tables with the top‑N worst per‑category cues for Original and Refined.
+- Use `--output-format json` to emit JSON (to stdout or to `-o <file>.json`). Use `--output-format markdown` (default) for Markdown. The `-o/--output` accepts either `.md` or `.json`.
+
+### Weights and CI/Automation
+
+- Custom weights: supply `--weights` with comma‑separated `key=value`. Allowed keys are `duration,cps,line,block,hygiene`. Values are normalized to sum to 1.0. These weights affect both the Markdown breakdown and the computed scores in JSON.
+- Exit codes for CI: use `--fail-below-score <threshold>` to fail if the refined score is below the threshold (0..100). Use `--fail-delta-below <delta>` to fail if `(refined − original)` score delta is below the given value. Either can be used alone or together.
+
+### Examples of using SRT Diff Report
+
+```bash
+# Emit JSON and fail pipeline if refined score < 85
+python -m scripts.srt_diff_report orig.srt ref.srt --output-format json --fail-below-score 85
+
+# Favor duration in the score and require at least +0.5 improvement
+python -m scripts.srt_diff_report orig.srt ref.srt --output-format json \
+  --weights "duration=0.7,cps=0.2,line=0.05,block=0.03,hygiene=0.02" \
+  --fail-delta-below 0.5
+```
