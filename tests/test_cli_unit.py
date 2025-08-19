@@ -38,9 +38,7 @@ def test_main_help() -> None:
     assert "Usage" in result.stdout
 
 
-def test_transcribe_basic(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_transcribe_basic(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Basic transcribe call should resolve inputs and return paths.
 
     Args:
@@ -72,9 +70,7 @@ def test_transcribe_basic(
     assert result == [Path("out.txt")]
 
 
-def test_transcribe_watch_mode(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_transcribe_watch_mode(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """When --watch is used, the watcher module should be invoked.
 
     Args:

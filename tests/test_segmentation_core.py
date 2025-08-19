@@ -2,13 +2,12 @@
 
 Covers `split_lines()` and `segment_words()` against readability constraints.
 """
+
 from __future__ import annotations
 
 from typing import List
 
-import pytest
-
-from parakeet_nemo_asr_rocm.timestamps.models import Segment, Word
+from parakeet_nemo_asr_rocm.timestamps.models import Word
 from parakeet_nemo_asr_rocm.timestamps.segmentation import (
     segment_words,
     split_lines,
@@ -56,11 +55,33 @@ def test_segment_words_splits_long_sentence() -> None:
     t = 0.0
     words: List[Word] = []
     for token in (
-        "This", "sentence", "is", "intentionally", "made", "very",
-        "very", "long", "to", "exceed", "the", "character", "limits,",
-        "so", "that", "the", "algorithm", "needs", "to", "split",
-        "at", "clause", "boundaries", "and", "fallback", "as",
-        "needed."
+        "This",
+        "sentence",
+        "is",
+        "intentionally",
+        "made",
+        "very",
+        "very",
+        "long",
+        "to",
+        "exceed",
+        "the",
+        "character",
+        "limits,",
+        "so",
+        "that",
+        "the",
+        "algorithm",
+        "needs",
+        "to",
+        "split",
+        "at",
+        "clause",
+        "boundaries",
+        "and",
+        "fallback",
+        "as",
+        "needed.",
     ):
         words.append(_w(token, t, t + 0.15))
         t += 0.18
@@ -68,7 +89,6 @@ def test_segment_words_splits_long_sentence() -> None:
     # Expect >1 segments due to length/duration
     assert len(segs) >= 2
     for seg in segs:
-        plain = seg.text.replace("\n", " ")
         dur = seg.end - seg.start
         # Duration within hard cap
         assert dur <= MAX_SEGMENT_DURATION_SEC

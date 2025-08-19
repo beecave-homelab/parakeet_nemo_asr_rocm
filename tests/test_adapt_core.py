@@ -4,6 +4,7 @@ We monkeypatch `ASRModel`, `Hypothesis`, and `get_word_timestamps` in
 `parakeet_nemo_asr_rocm.timestamps.adapt` to avoid heavy dependencies while
 still satisfying type checks (Typeguard).
 """
+
 from __future__ import annotations
 
 from typing import List

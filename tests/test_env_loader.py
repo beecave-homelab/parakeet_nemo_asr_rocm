@@ -5,13 +5,13 @@ or manual parsing and ensure idempotent behavior when files are missing.
 """
 
 import os
+from pathlib import Path
+from typing import Any
 
 from parakeet_nemo_asr_rocm.utils import env_loader
 
 
-def test_load_project_env_dotenv(
-    monkeypatch: "pytest.MonkeyPatch", tmp_path
-) -> None:
+def test_load_project_env_dotenv(monkeypatch: Any, tmp_path: Path) -> None:
     """When python-dotenv is available, it should be invoked.
 
     Args:
@@ -37,9 +37,7 @@ def test_load_project_env_dotenv(
     assert os.getenv("FOO") == "bar"
 
 
-def test_load_project_env_manual(
-    monkeypatch: "pytest.MonkeyPatch", tmp_path
-) -> None:
+def test_load_project_env_manual(monkeypatch: Any, tmp_path: Path) -> None:
     """Manual parsing should set environment variables when dotenv is absent.
 
     Args:
@@ -60,9 +58,7 @@ def test_load_project_env_manual(
     assert os.getenv("HELLO") == "world"
 
 
-def test_load_project_env_no_file(
-    monkeypatch: "pytest.MonkeyPatch", tmp_path
-) -> None:
+def test_load_project_env_no_file(monkeypatch: Any, tmp_path: Path) -> None:
     """Missing env files should not crash the loader.
 
     Args:
