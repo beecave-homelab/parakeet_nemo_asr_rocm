@@ -40,6 +40,7 @@ from parakeet_rocm.utils.constant import (
     GRADIO_SERVER_PORT,
     IDLE_CLEAR_TIMEOUT_SEC,
     IDLE_UNLOAD_TIMEOUT_SEC,
+    PARAKEET_MODEL_NAME,
     SUPPORTED_EXTENSIONS,
 )
 from parakeet_rocm.utils.logging_config import configure_logging, get_logger
@@ -242,12 +243,14 @@ def build_app(
             with gr.Row():
                 model_selector = gr.Dropdown(
                     choices=[
+                        PARAKEET_MODEL_NAME,
                         "nvidia/parakeet-tdt-0.6b-v3",
                         "nvidia/parakeet-tdt-0.6b-v2",
                     ],
-                    value="nvidia/parakeet-tdt-0.6b-v3",
+                    value=PARAKEET_MODEL_NAME,
                     label="Model Selection",
-                    info="v3=multilingual, v2=English only",
+                    info="v3=multilingual, v2=English only, unified=better WER",
+                    allow_custom_value=True,
                 )
 
             with gr.Accordion("Advanced Settings", open=False):

@@ -19,6 +19,7 @@ services:
       - "/opt/rocm:/opt/rocm:ro"
       - "./data:/app/data"
       - "./parakeet_rocm:/app/parakeet_rocm"
+      - "$HOME/.cache/huggingface:/root/.cache/huggingface"
     # Run in debug mode
     # command: ["parakeet-rocm", "webui", "--host", "${GRADIO_SERVER_NAME:-0.0.0.0}", "--port", "${GRADIO_SERVER_PORT:-7861}", "--debug"]
     # Run in normal mode
@@ -43,8 +44,7 @@ services:
       - "/opt/rocm:/opt/rocm:ro"
       - "./data:/app/data"
       - "./parakeet_rocm:/app/parakeet_rocm"
-    # Run in debug mode
-    # command: ["parakeet-rocm", "api", "--host", "${API_SERVER_NAME:-0.0.0.0}", "--port", "${API_SERVER_PORT:-8080}", "--debug"]
-    # Run in normal mode
-    command: ["parakeet-rocm", "api", "--host", "${API_SERVER_NAME:-0.0.0.0}", "--port", "${API_SERVER_PORT:-8080}"]
+      - "$HOME/.cache/huggingface:/root/.cache/huggingface"
+    # Enable detailed API and Uvicorn diagnostics for model-load failures.
+    command: ["parakeet-rocm", "api", "--host", "${API_SERVER_NAME:-0.0.0.0}", "--port", "${API_SERVER_PORT:-8080}", "--debug"]
     restart: unless-stopped
