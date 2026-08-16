@@ -17,6 +17,8 @@ def _stub_model_module(monkeypatch: pytest.MonkeyPatch) -> None:
     """Avoid importing optional NeMo dependencies in API integration tests."""
     fake_models = types.ModuleType("parakeet_rocm.models.parakeet")
     fake_models.get_model = lambda *_args, **_kwargs: object()
+    fake_models.clear_model_cache = lambda: None
+    fake_models.unload_model_to_cpu = lambda: None
     monkeypatch.setitem(sys.modules, "parakeet_rocm.models.parakeet", fake_models)
     fake_transcription = types.ModuleType("parakeet_rocm.transcription")
     fake_transcription.cli_transcribe = lambda *_args, **_kwargs: None
@@ -44,6 +46,7 @@ def _install_fake_webui_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
     fake_webui_app.build_app = build_app
     fake_webui_app._start_idle_offload_thread = _start_idle_offload_thread
     fake_webui_app._cleanup_models = _cleanup_models
+    fake_webui_app.WEBUI_CONTAINER_CSS = ".gradio-container {}"
     monkeypatch.setitem(sys.modules, "parakeet_rocm.webui.app", fake_webui_app)
 
     fake_job_manager = types.ModuleType("parakeet_rocm.webui.core.job_manager")
@@ -74,6 +77,7 @@ def _install_fake_webui_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
         _gradio_app: object,
         *,
         path: str,
+        **_kwargs: object,
     ) -> FastAPI:
         assert path == "/ui"
         return app
