@@ -8,8 +8,10 @@ import tempfile
 import threading
 from pathlib import Path
 from time import monotonic, perf_counter
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
+import torch
 from fastapi import APIRouter, BackgroundTasks, File, Form, Request, UploadFile
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from pydantic import ValidationError
@@ -31,12 +33,15 @@ from parakeet_rocm.api.schemas import (
 )
 from parakeet_rocm.config import OutputConfig, StabilizationConfig, TranscriptionConfig
 from parakeet_rocm.formatting import UnsupportedFormatError
-from parakeet_rocm.models.parakeet import get_model
+from parakeet_rocm.models.parakeet import clear_model_cache, get_model, unload_model_to_cpu
 from parakeet_rocm.timestamps.models import AlignedResult
 from parakeet_rocm.transcription import cli_transcribe
 from parakeet_rocm.utils.constant import API_DEFAULT_BATCH_SIZE, API_DEFAULT_CHUNK_LEN_SEC
 from parakeet_rocm.utils.logging_config import get_logger
 from parakeet_rocm.webui.validation.file_validator import FileValidationError, validate_audio_file
+
+if TYPE_CHECKING:
+    from nemo.collections.asr.models import ASRModel
 
 logger = get_logger(__name__)
 
@@ -45,6 +50,9 @@ router = APIRouter()
 _activity_lock = threading.RLock()
 _last_api_activity_monotonic = monotonic()
 _active_api_requests = 0
+_api_model_lock = threading.Lock()
+_active_api_model_name: str | None = None
+_api_model_generation = 0
 
 
 def mark_api_activity() -> None:
@@ -88,6 +96,70 @@ def has_active_api_requests() -> bool:
     """
     with _activity_lock:
         return _active_api_requests > 0
+
+
+def get_api_model(model_name: str) -> ASRModel:
+    """Return an API model after offloading a previously active model.
+
+    Only the active-model bookkeeping and the previous-model offload are
+    performed under ``_api_model_lock``.  The expensive ``get_model()``
+    call (which may trigger GPU device promotion) runs outside the lock
+    so concurrent requests and the idle-offload worker are not blocked
+    behind slow GPU operations.
+
+    Args:
+        model_name: Identifier of the model selected by the API request.
+
+    Returns:
+        Requested model placed on the preferred device.
+    """
+    global _active_api_model_name, _api_model_generation
+    with _api_model_lock:
+        previous_model_name = _active_api_model_name
+        if previous_model_name is not None and previous_model_name != model_name:
+            logger.info(
+                "API model changed: offloading model=%s before loading model=%s",
+                previous_model_name,
+                model_name,
+            )
+            unload_model_to_cpu(previous_model_name)
+        _active_api_model_name = model_name
+        generation = _api_model_generation
+
+    try:
+        return get_model(model_name)
+    except Exception:
+        with _api_model_lock:
+            if _api_model_generation == generation:
+                _active_api_model_name = previous_model_name
+        raise
+
+
+def unload_active_api_model() -> None:
+    """Offload the active API model without loading a cache miss.
+
+    Acquires ``_api_model_lock`` and, when a model is currently active,
+    moves it to CPU via ``unload_model_to_cpu``.  The active-model name is
+    left unchanged so a subsequent ``get_api_model`` call can reuse it.
+    """
+    with _api_model_lock:
+        if _active_api_model_name is not None:
+            unload_model_to_cpu(_active_api_model_name)
+
+
+def clear_api_model_cache() -> None:
+    """Clear API model state and all cached model instances.
+
+    Acquires ``_api_model_lock``, calls ``clear_model_cache`` to drop every
+    cached ``ASRModel`` instance, resets ``_active_api_model_name`` to
+    ``None``, and bumps ``_api_model_generation`` so in-flight
+    ``get_api_model`` rollbacks do not clobber the cleared state.
+    """
+    global _active_api_model_name, _api_model_generation
+    with _api_model_lock:
+        clear_model_cache()
+        _active_api_model_name = None
+        _api_model_generation += 1
 
 
 def _safe_cleanup(path: Path) -> None:
@@ -305,7 +377,7 @@ async def create_transcription(
         except Exception:
             cache_hits_before = None
 
-        get_model(model_name)
+        get_api_model(model_name)
 
         try:
             from parakeet_rocm.models.parakeet import _get_cached_model  # type: ignore
@@ -513,6 +585,7 @@ async def create_transcription(
             code="validation_error",
         )
     except FileValidationError as exc:
+        logger.warning("API request rejected due to invalid file: id=%s err=%s", request_id, exc)
         return _build_error_response(
             status_code=400,
             message=str(exc),
@@ -520,6 +593,11 @@ async def create_transcription(
             code="invalid_file",
         )
     except UnsupportedFormatError as exc:
+        logger.warning(
+            "API request rejected due to unsupported format: id=%s err=%s",
+            request_id,
+            exc,
+        )
         return _build_error_response(
             status_code=400,
             message=str(exc),
@@ -527,6 +605,7 @@ async def create_transcription(
             code="unsupported_format",
         )
     except ValueError as exc:
+        logger.warning("API request rejected due to invalid input: id=%s err=%s", request_id, exc)
         return _build_error_response(
             status_code=400,
             message=str(exc),
@@ -534,6 +613,20 @@ async def create_transcription(
             code="invalid_request",
         )
     except RuntimeError as exc:
+        if isinstance(exc, torch.cuda.OutOfMemoryError):
+            logger.exception(
+                "API transcription failed due to GPU memory exhaustion: id=%s",
+                request_id,
+            )
+            clear_api_model_cache()
+            return _build_error_response(
+                status_code=503,
+                message="GPU is out of memory. Please retry after freeing GPU memory.",
+                error_type="server_error",
+                code="gpu_oom",
+            )
+
+        logger.exception("API transcription runtime failure: id=%s", request_id)
         lowered_error = str(exc).lower()
         is_audio_format_error = (
             ("ffmpeg" in lowered_error and "format" in lowered_error)
@@ -555,19 +648,6 @@ async def create_transcription(
             code="runtime_error",
         )
     except Exception as exc:
-        try:
-            import torch
-        except (ModuleNotFoundError, ImportError):
-            torch = None
-
-        if torch is not None and isinstance(exc, torch.cuda.OutOfMemoryError):
-            return _build_error_response(
-                status_code=503,
-                message="GPU is out of memory. Please retry with a smaller input.",
-                error_type="server_error",
-                code="gpu_oom",
-            )
-
         exception_module = getattr(exc.__class__, "__module__", "") or ""
         if "nemo" in exception_module.lower():
             status_code, error_type, error_code = _nemo_error_status(str(exc))

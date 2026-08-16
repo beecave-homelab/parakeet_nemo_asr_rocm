@@ -32,10 +32,8 @@ def _warmup_api_model_cache() -> None:
     This is a best-effort operation and must not fail server startup.
     """
     try:
-        from parakeet_rocm.models.parakeet import get_model
-
         logger.info("API model warmup started for model=%s", API_MODEL_NAME)
-        get_model(API_MODEL_NAME)
+        api_routes.get_api_model(API_MODEL_NAME)
         logger.info("API model warmup completed for model=%s", API_MODEL_NAME)
     except Exception:
         logger.exception("API model warmup failed; continuing without warm cache")
@@ -56,8 +54,6 @@ def _start_api_idle_offload_thread() -> None:
     """Start API idle offload loop to keep VRAM usage low between requests."""
 
     def _worker() -> None:
-        from parakeet_rocm.models.parakeet import clear_model_cache, unload_model_to_cpu
-
         unloaded = False
         cleared = False
         while True:
@@ -68,10 +64,10 @@ def _start_api_idle_offload_thread() -> None:
                 else:
                     idle_for = time.monotonic() - api_routes.get_last_api_activity_monotonic()
                     if not unloaded and idle_for >= IDLE_UNLOAD_TIMEOUT_SEC:
-                        unload_model_to_cpu(API_MODEL_NAME)
+                        api_routes.unload_active_api_model()
                         unloaded = True
                     if not cleared and idle_for >= IDLE_CLEAR_TIMEOUT_SEC:
-                        clear_model_cache()
+                        api_routes.clear_api_model_cache()
                         cleared = True
             except Exception:
                 logger.debug("API idle offload loop iteration failed", exc_info=True)

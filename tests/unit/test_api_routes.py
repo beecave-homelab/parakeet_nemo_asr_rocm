@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
+import torch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -328,6 +330,7 @@ def test_create_transcription__ffmpeg_format_error_returns_invalid_audio_format(
 def test_create_transcription__unrelated_format_error_returns_runtime_error(
     test_client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Unrelated format runtime failures should not be misclassified as audio errors."""
 
@@ -346,6 +349,172 @@ def test_create_transcription__unrelated_format_error_returns_runtime_error(
     assert response.status_code == 500
     payload = response.json()
     assert payload["error"]["code"] == "runtime_error"
+    assert "API transcription runtime failure" in caplog.text
+    assert "Template format key missing" in caplog.text
+
+
+def test_create_transcription__gpu_oom_releases_model_cache(
+    test_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """GPU OOM failures should release cached models and return a retryable error."""
+
+    def _raise_gpu_oom(**_kwargs: object) -> list[Path]:
+        raise torch.cuda.OutOfMemoryError("HIP out of memory")
+
+    clear_cache_calls: list[None] = []
+    monkeypatch.setattr(routes, "cli_transcribe", _raise_gpu_oom)
+    monkeypatch.setattr(routes, "clear_api_model_cache", lambda: clear_cache_calls.append(None))
+
+    response = test_client.post(
+        "/v1/audio/transcriptions",
+        files={"file": ("audio.wav", b"fake-audio", "audio/wav")},
+        data={"model": "whisper-1", "response_format": "json"},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "gpu_oom"
+    assert clear_cache_calls == [None]
+    assert "GPU memory exhaustion" in caplog.text
+
+
+def test_get_api_model__offloads_previous_model_before_loading_replacement(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A model change should offload the current GPU model before loading another."""
+    first_model = MagicMock()
+    replacement_model = MagicMock()
+    calls: list[tuple[str, str]] = []
+    monkeypatch.setattr(routes, "_active_api_model_name", None)
+    monkeypatch.setattr(
+        routes,
+        "unload_model_to_cpu",
+        lambda name: calls.append(("offload", name)),
+    )
+
+    def _get_model(name: str) -> MagicMock:
+        calls.append(("load", name))
+        return first_model if name == "first" else replacement_model
+
+    monkeypatch.setattr(routes, "get_model", _get_model)
+
+    assert routes.get_api_model("first") is first_model
+    assert routes.get_api_model("replacement") is replacement_model
+
+    assert calls == [
+        ("load", "first"),
+        ("offload", "first"),
+        ("load", "replacement"),
+    ]
+
+
+def test_get_api_model__restores_active_name_on_get_model_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """get_api_model should restore the previous active name when get_model fails.
+
+    A non-OOM ``get_model`` failure must not leave the failed model marked as
+    active.  The bookkeeping should roll back to the previous name so lifecycle
+    operations target the correct model.
+    """
+    offload_calls: list[str] = []
+    monkeypatch.setattr(routes, "_active_api_model_name", "existing")
+    monkeypatch.setattr(
+        routes,
+        "unload_model_to_cpu",
+        lambda name: offload_calls.append(name),
+    )
+
+    def _failing_get_model(_name: str) -> object:
+        raise RuntimeError("model load failed")
+
+    monkeypatch.setattr(routes, "get_model", _failing_get_model)
+
+    with pytest.raises(RuntimeError, match="model load failed"):
+        routes.get_api_model("new-model")
+
+    assert routes._active_api_model_name == "existing"
+    assert offload_calls == ["existing"]
+
+
+def test_unload_active_api_model__offloads_when_model_active(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """unload_active_api_model should offload the active model via unload_model_to_cpu.
+
+    With ``_active_api_model_name`` set to a model name, the helper should
+    call ``unload_model_to_cpu`` with that name while holding the lock.
+    """
+    offload_calls: list[str] = []
+    monkeypatch.setattr(routes, "_active_api_model_name", "test-model")
+    monkeypatch.setattr(
+        routes,
+        "unload_model_to_cpu",
+        lambda name: offload_calls.append(name),
+    )
+
+    routes.unload_active_api_model()
+
+    assert offload_calls == ["test-model"]
+
+
+def test_unload_active_api_model__noop_when_no_model_active(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """unload_active_api_model should be a no-op when no model is active.
+
+    With ``_active_api_model_name`` set to ``None``, the helper should not
+    invoke ``unload_model_to_cpu``.
+    """
+    offload_calls: list[str] = []
+    monkeypatch.setattr(routes, "_active_api_model_name", None)
+    monkeypatch.setattr(
+        routes,
+        "unload_model_to_cpu",
+        lambda name: offload_calls.append(name),
+    )
+
+    routes.unload_active_api_model()
+
+    assert offload_calls == []
+
+
+def test_clear_api_model_cache__clears_cache_and_resets_active_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """clear_api_model_cache should clear the cache and reset the active name.
+
+    With ``_active_api_model_name`` set to a model name, the helper should
+    invoke ``clear_model_cache`` and reset ``_active_api_model_name`` to
+    ``None``.
+    """
+    clear_calls: list[None] = []
+    monkeypatch.setattr(routes, "_active_api_model_name", "test-model")
+    monkeypatch.setattr(routes, "clear_model_cache", lambda: clear_calls.append(None))
+
+    routes.clear_api_model_cache()
+
+    assert clear_calls == [None]
+    assert routes._active_api_model_name is None
+
+
+def test_clear_api_model_cache__clears_when_no_model_active(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """clear_api_model_cache should still clear the cache when no model is active.
+
+    With ``_active_api_model_name`` already ``None``, the helper should
+    still invoke ``clear_model_cache`` and keep the name at ``None``.
+    """
+    clear_calls: list[None] = []
+    monkeypatch.setattr(routes, "_active_api_model_name", None)
+    monkeypatch.setattr(routes, "clear_model_cache", lambda: clear_calls.append(None))
+
+    routes.clear_api_model_cache()
+
+    assert clear_calls == [None]
+    assert routes._active_api_model_name is None
 
 
 def test_create_transcription__rejects_invalid_model(
