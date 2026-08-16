@@ -170,10 +170,11 @@ def merge_longest_common_subsequence(
 
     This function finds tokens in the temporal overlap between the two sequences,
     computes an LCS over normalised token text to identify matching tokens, aligns
-    the second sequence to the first using the first LCS match, and stitches the
-    sequences by preferring the longer token gaps between matches. If no LCS is
-    found within the overlap, the function falls back to a midpoint-based
-    contiguous merge.
+    the second sequence to the first using a robust median-based offset from all
+    LCS anchors (filtering outliers via MAD), and stitches the sequences by
+    preferring the longer token gaps between matches. If no LCS anchors are found
+    within the overlap, the function falls back to a midpoint-based contiguous
+    merge.
 
     Parameters:
         a (list[Word]): First (earlier) token sequence, expected pre-sorted

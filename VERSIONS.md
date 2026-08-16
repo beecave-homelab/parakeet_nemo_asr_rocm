@@ -2,7 +2,8 @@
 
 ## Table of Contents
 
-- [v0.14.0 (Current)](#v0140-current---21-02-2026)
+- [v0.15.0 (Current)](#v0150-current---06-07-2026)
+- [v0.14.0](#v0140---21-02-2026)
 - [v0.13.0](#v0130---february-2026)
 - [v0.12.0](#v0120---february-2026)
 - [v0.11.0](#v0110---january-2026)
@@ -26,7 +27,48 @@
 
 ______________________________________________________________________
 
-## **v0.14.0** (Current) - *21-02-2026*
+## **v0.15.0** (Current) - *06-07-2026*
+
+### ✨ **Feature Release - Thread-Safe Cache, Writeability Checks & Logging Overhaul**
+
+### ✨ **New Features in v0.15.0**
+
+- **Added**: `ensure_dir_writable()` utility in `file_utils.py` for atomic directory writeability validation using `NamedTemporaryFile` probes.
+- **Added**: CLI pre-flight validation of output directory writeability before transcription starts, with benchmark collector integration.
+- **Added**: Centralized logging configuration for API model warmup and transcription, with structured request lifecycle logging.
+- **Added**: `pr-draft.sh` script for creating GitHub draft PRs with interactive file picker and dry-run mode.
+
+### 🐛 **Bug Fixes in v0.15.0**
+
+- **Fixed**: Thread-safe model cache operations — `unload_model_to_cpu()` no longer triggers spurious CPU→GPU→CPU round-trips; `threading.Lock` (`_cache_lock`) protects LRU insert and cache clear operations (closes #31).
+  - **Issue**: `unload_model_to_cpu()` called `get_model()` which reloaded the model to GPU; race condition with `clear_model_cache()`.
+  - **Root Cause**: No locking around cache access; `get_model()` used instead of a no-load peek.
+  - **Solution**: Added `_cache_lock`, replaced `get_model()` with `_cached_keys` set for no-load checks, added device guard before `model.to("cpu")`.
+- **Fixed**: Subtitle timestamp drift over long videos — LCS merge now uses median/MAD-based robust offset estimation from all anchor pairs instead of anchoring to only the first match (closes #10).
+  - **Issue**: Cumulative linear drift in SRT timestamps, especially in watch/systemd usage.
+  - **Root Cause**: Single-anchor time offset in `merge_longest_common_subsequence` was fragile with repeated tokens.
+  - **Solution**: Estimate chunk-b time shift from all LCS anchor pairs using median-based offset.
+- **Fixed**: Watch-mode SIGINT handler — replaced `sys.exit(0)` with cooperative shutdown, closed race window and test state leak, prevented reentrant `BufferedWriter` crash and duplicate "Stopping…" messages (PRs #37/#38).
+- **Fixed**: Pre-flight filename validation before ASR starts to catch invalid filenames early (closes #32).
+- **Fixed**: API logging — `response_format` now uses validated value from `transcription_request`; auth check and request tracking ordering corrected; `finish_api_request()` no longer called when tracking was never started.
+- **Fixed**: Logging configuration properly honors `NEMO_LOG_LEVEL` and `TRANSFORMERS_VERBOSITY` environment overrides; third-party logger suppression expanded.
+- **Fixed**: `set_nemo_verbose` deterministic reset and debug logging centralization (PR #34 review).
+
+### 🔧 **Improvements in v0.15.0**
+
+- **Improved**: Centralized logging across `job_manager.py`, transcription modules, and collector — all logging now routed through `utils/logging_config`.
+- **Improved**: API request logging moved after validation; client origin and file details removed from log messages for privacy.
+- **Improved**: Template exception handling widened with Google-style `Args:` docstring format.
+- **Improved**: Test naming standardized with double-underscore convention; `noqa` comments removed.
+- **Updated**: `AGENTS.md` logging policy and testing guidance; `.env.example` formatting fixes.
+
+### 📝 **Key Commits in v0.15.0**
+
+`06dcb15`, `613ed6c`, `47da44c`, `fc776e3`, `a284697`, `dcadecd`
+
+______________________________________________________________________
+
+## **v0.14.0** - *21-02-2026*
 
 ### ✨ **Feature Release - API Auth & Model Controls**
 

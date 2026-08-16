@@ -64,7 +64,19 @@ from parakeet_rocm.webui.validation.file_validator import (
 # Module logger
 logger = get_logger(__name__)
 
-WEBUI_CONTAINER_CSS = ".gradio-container { max-width: 1200px; margin: auto; }"
+WEBUI_CONTAINER_CSS = """
+.gradio-container { max-width: 1200px; margin: auto; }
+.parakeet-title { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
+.parakeet-title img { width: 2.5rem; height: 2.5rem; flex: 0 0 auto; }
+.parakeet-title h1 { margin: 0; }
+"""
+
+WEBUI_TITLE_HTML = """\
+<div class="parakeet-title">
+  <img src="./parakeet-assets/parakeet-rocm-icon.svg" alt="">
+  <h1>Parakeet-ROCm WebUI</h1>
+</div>
+"""
 
 
 def _require_gradio() -> None:
@@ -184,11 +196,10 @@ def build_app(
         analytics_enabled: Enable Gradio analytics tracking.
 
     Returns:
-        Configured Gradio Blocks application ready to launch.
+        Configured Gradio Blocks application ready for the FastAPI composition.
 
     Examples:
         >>> app = build_app()
-        >>> app.launch()
 
         >>> # With custom job manager
         >>> manager = JobManager()
@@ -204,17 +215,21 @@ def build_app(
 
     session_manager = SessionManager()
 
-    # Build application
+    # Keep visual styling on Blocks for embedding and previews. Install metadata
+    # is supplied by ``create_app()``, where the referenced asset routes exist.
+    # ``launch_app()`` is the supported standalone server entry point.
     with gr.Blocks(
         title="Parakeet-ROCm WebUI",
         analytics_enabled=analytics_enabled,
+        theme=configure_theme(),
+        css=WEBUI_CONTAINER_CSS,
     ) as app:
         # Session state (for future use)
         # Reserved for future session features
         _session_state = gr.State(session_manager.create_session())
 
         # Header
-        gr.Markdown("# 🎤 Parakeet-ROCm WebUI")
+        gr.Markdown(WEBUI_TITLE_HTML)
         gr.Markdown(
             "Upload audio or video files and transcribe them using NVIDIA's Parakeet-NEMO models."
         )
@@ -869,15 +884,21 @@ def launch_app(
     Args:
         server_name: Server hostname or IP address.
         server_port: Server port number.
-        share: Create public Gradio share link.
+        share: Request a public Gradio share link. Mounted mode does not support
+            share links and logs a warning instead.
         debug: Enable debug mode with verbose logging.
-        **kwargs: Additional arguments passed to Gradio launch.
+        **kwargs: Additional Uvicorn arguments. ``host``, ``port``, and
+            ``log_level`` are reserved because the explicit launch arguments
+            control them.
+
+    Raises:
+        ValueError: If ``kwargs`` contains a reserved Uvicorn argument.
 
     Examples:
         >>> # Launch on localhost
         >>> launch_app()
 
-        >>> # Launch with public sharing
+        >>> # Share links are not supported in mounted mode (logs a warning)
         >>> launch_app(share=True)
 
         >>> # Custom port and debug mode
@@ -887,27 +908,30 @@ def launch_app(
     configure_logging(level="DEBUG" if debug else "INFO")
 
     logger.info("Building Gradio WebUI application")
-    # Build with an explicit JobManager so we can monitor for idle offload
-    jm = JobManager()
-    app = build_app(job_manager=jm)
-
-    # Register cleanup handlers and idle offload monitor
-    _register_shutdown_handlers()
-    _start_idle_offload_thread(jm)
-
     print(f"🚀 Launching Parakeet-NEMO WebUI on http://{server_name}:{server_port}")
     if debug:
         print("📊 Debug mode enabled - check console for detailed logs")
 
+    if share:
+        logger.warning("Gradio share links are not supported in mounted WebUI mode.")
+
+    reserved_kwargs = {"host", "port", "log_level"}.intersection(kwargs)
+    if reserved_kwargs:
+        names = ", ".join(sorted(reserved_kwargs))
+        raise ValueError(f"launch_app() does not accept reserved Uvicorn kwargs: {names}")
+
+    # Use the same FastAPI composition as the production API, but mount the UI
+    # at root. Parakeet icons use ``/parakeet-assets`` so Gradio retains its
+    # reserved ``/assets`` frontend bundle route.
+    import uvicorn
+
+    from parakeet_rocm.api import create_app
+
     logger.info(f"Starting server on {server_name}:{server_port}")
-    app.launch(
-        server_name=server_name,
-        server_port=server_port,
-        share=share,
-        debug=debug,
-        show_error=True,
-        quiet=not debug,
-        theme=configure_theme(),
-        css=WEBUI_CONTAINER_CSS,
+    uvicorn.run(
+        create_app(ui_path=""),
+        host=server_name,
+        port=server_port,
+        log_level="debug" if debug else "info",
         **kwargs,
     )

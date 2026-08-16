@@ -1,6 +1,6 @@
 # Parakeet-ROCm
 
-[![Version](https://img.shields.io/badge/Version-v0.14.0-informational)](./VERSIONS.md)
+[![Version](https://img.shields.io/badge/Version-v0.15.0-informational)](./VERSIONS.md)
 [![Python](https://img.shields.io/badge/Python-3.10-blue)](https://www.python.org)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)](LICENSE)
 [![ROCm](https://img.shields.io/badge/ROCm-6.4.1-red)](https://rocm.docs.amd.com/)

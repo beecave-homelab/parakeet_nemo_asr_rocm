@@ -12,6 +12,17 @@ from fastapi.testclient import TestClient
 pytestmark = [pytest.mark.integration, pytest.mark.api]
 
 
+@pytest.fixture(autouse=True)
+def _stub_model_module(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Avoid importing optional NeMo dependencies in API integration tests."""
+    fake_models = types.ModuleType("parakeet_rocm.models.parakeet")
+    fake_models.get_model = lambda *_args, **_kwargs: object()
+    monkeypatch.setitem(sys.modules, "parakeet_rocm.models.parakeet", fake_models)
+    fake_transcription = types.ModuleType("parakeet_rocm.transcription")
+    fake_transcription.cli_transcribe = lambda *_args, **_kwargs: None
+    monkeypatch.setitem(sys.modules, "parakeet_rocm.transcription", fake_transcription)
+
+
 def _install_fake_webui_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
     """Install lightweight fakes for WebUI modules used by API app factory.
 
@@ -33,7 +44,6 @@ def _install_fake_webui_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
     fake_webui_app.build_app = build_app
     fake_webui_app._start_idle_offload_thread = _start_idle_offload_thread
     fake_webui_app._cleanup_models = _cleanup_models
-    fake_webui_app.WEBUI_CONTAINER_CSS = ".gradio-container { max-width: 1200px; margin: auto; }"
     monkeypatch.setitem(sys.modules, "parakeet_rocm.webui.app", fake_webui_app)
 
     fake_job_manager = types.ModuleType("parakeet_rocm.webui.core.job_manager")
@@ -64,12 +74,8 @@ def _install_fake_webui_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
         _gradio_app: object,
         *,
         path: str,
-        theme: object | None = None,
-        css: str | None = None,
     ) -> FastAPI:
         assert path == "/ui"
-        assert theme is not None
-        assert css is not None
         return app
 
     fake_gradio.mount_gradio_app = mount_gradio_app

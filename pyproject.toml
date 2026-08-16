@@ -1,6 +1,6 @@
 [project]
 name = "parakeet-rocm"
-version = "0.14.0"
+version = "0.15.0"
 description = "ASR inference service for NVIDIA Parakeet models on AMD ROCm GPUs"
 authors = [{ name = "elvee" }]
 requires-python = ">=3.10,<3.11"
