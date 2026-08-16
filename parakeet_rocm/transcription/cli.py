@@ -256,8 +256,7 @@ def cli_transcribe(
         # Show effective configuration resolved via utils.constant
         print_status(
             "env",
-            f"NEMO_LOG_LEVEL={NEMO_LOG_LEVEL}, "
-            f"TRANSFORMERS_VERBOSITY={TRANSFORMERS_VERBOSITY}",
+            f"NEMO_LOG_LEVEL={NEMO_LOG_LEVEL}, TRANSFORMERS_VERBOSITY={TRANSFORMERS_VERBOSITY}",
             quiet=quiet,
         )
         print_status(
@@ -314,12 +313,13 @@ def cli_transcribe(
     )
     if validation_errors:
         for path, msg in validation_errors:
-            typer.echo(f"Error: {path}: {msg}", err=True)
+            print_error(f"{path}: {msg}", quiet=quiet)
         if not allow_unsafe_filenames:
-            typer.echo(
-                "Hint: use --allow-unsafe-filenames to allow spaces and "
-                "special characters in filenames.",
+            print_status(
+                "hint",
+                "Use --allow-unsafe-filenames to allow spaces and special characters in filenames.",
                 err=True,
+                quiet=quiet,
             )
         raise typer.Exit(code=1)
 

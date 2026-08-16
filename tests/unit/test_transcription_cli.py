@@ -6,6 +6,7 @@ import runpy
 import sys
 import types
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 import typer
@@ -231,6 +232,32 @@ class TestFilenameValidationFailFast:
             )
 
         assert not model_loaded["called"], "get_model was called despite invalid filename"
+
+    def test_cli_transcribe__invalid_filename_uses_rich_error_and_hint(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Invalid filenames should use the shared styled output helpers."""
+        bad = tmp_path / "bad file.wav"
+        print_error = Mock()
+        print_status = Mock()
+        monkeypatch.setattr(transcription_cli, "print_error", print_error)
+        monkeypatch.setattr(transcription_cli, "print_status", print_status)
+
+        with pytest.raises(typer.Exit):
+            transcription_cli.cli_transcribe(
+                audio_files=[bad],
+                output_dir=tmp_path,
+                output_format="txt",
+                no_progress=True,
+            )
+
+        assert "bad file.wav" in print_error.call_args.args[0]
+        assert print_error.call_args.kwargs == {"quiet": False}
+        assert print_status.call_args.args == (
+            "hint",
+            "Use --allow-unsafe-filenames to allow spaces and special characters in filenames.",
+        )
+        assert print_status.call_args.kwargs == {"err": True, "quiet": False}
 
     def test_cli_transcribe__invalid_template_placeholder_exits_before_model_load(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
