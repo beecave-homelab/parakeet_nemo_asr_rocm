@@ -26,7 +26,7 @@ import scipy.linalg  # noqa: F401
 import torch
 
 from parakeet_rocm.models.parakeet import clear_model_cache, unload_model_to_cpu
-from parakeet_rocm.utils.console import get_console, print_status
+from parakeet_rocm.utils.console import get_error_console, print_status
 from parakeet_rocm.utils.constant import (
     BENCHMARK_OUTPUT_DIR,
     DEFAULT_BATCH_SIZE,
@@ -111,7 +111,7 @@ def _register_shutdown_handlers() -> None:
             # Force immediate process termination; os._exit bypasses
             # Python cleanup (atexit, finally blocks) but ensures the
             # process actually dies on CTRL+C.
-            get_console().print("\n[red]Shutting down...[/red]")
+            get_error_console().print("\n[red]Shutting down...[/red]")
             os._exit(128 + _signum)
 
     try:

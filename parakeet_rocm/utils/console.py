@@ -19,11 +19,11 @@ ConsolePrintItem = ConsoleRenderable | RichCast | RenderableType | Segment
 __all__ = [
     "get_console",
     "get_error_console",
+    "print_error",
     "print_info",
+    "print_status",
     "print_success",
     "print_warning",
-    "print_error",
-    "print_status",
 ]
 
 

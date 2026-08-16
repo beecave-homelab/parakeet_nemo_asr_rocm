@@ -24,6 +24,8 @@ from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from types import FrameType
 
+from rich.markup import escape
+
 from parakeet_rocm.models.parakeet import (
     clear_model_cache,
     unload_model_to_cpu,
@@ -45,7 +47,12 @@ __all__ = ["watch_and_transcribe"]
 _stop_event = threading.Event()
 
 
-def _default_sig_handler(_signum: int, _frame: FrameType | None) -> None:  # noqa: D401
+def _default_sig_handler(
+    _signum: int,
+    _frame: FrameType | None,
+    *,
+    quiet: bool = False,
+) -> None:  # noqa: D401
     """Handle ``SIGINT`` (Ctrl-C) gracefully.
 
     Sets the module-level stop event so the poll loop in
@@ -57,10 +64,11 @@ def _default_sig_handler(_signum: int, _frame: FrameType | None) -> None:  # noq
     Args:
         _signum: Received POSIX signal number (unused).
         _frame: Current stack frame (unused).
+        quiet: Whether to suppress the shutdown status message.
 
     """
     _stop_event.set()
-    print_status("watch", "\nStopping…", quiet=False)
+    print_status("watch", "\nStopping…", quiet=quiet)
 
 
 def _needs_transcription(
@@ -138,6 +146,7 @@ def watch_and_transcribe(
     watch_base_dirs: Sequence[Path] | None = None,
     audio_exts: Sequence[str] | None = None,
     verbose: bool = False,
+    quiet: bool = False,
 ) -> None:
     """Monitor filesystem patterns and invoke a transcription callback.
 
@@ -164,14 +173,15 @@ def watch_and_transcribe(
             computing target output locations.
         audio_exts (Sequence[str] | None): Allowed audio extensions; defaults
             to ``AUDIO_EXTENSIONS`` when ``None``.
-        verbose (bool): If True, prints watcher debug information to the console.
+        verbose: Whether to print watcher debug information.
+        quiet: Whether to suppress watcher status output.
 
     """
     patterns = list(patterns)
     print_status(
         "watch",
-        f"Monitoring {', '.join(map(str, patterns))} …  (Press Ctrl+C to stop)",
-        quiet=False,
+        f"Monitoring {escape(', '.join(map(str, patterns)))} …  (Press Ctrl+C to stop)",
+        quiet=quiet,
     )
 
     original_handler: signal.Handlers | int = signal.SIG_DFL
@@ -179,7 +189,10 @@ def watch_and_transcribe(
         _stop_event.clear()
         if threading.current_thread() is threading.main_thread():
             try:
-                original_handler = signal.signal(signal.SIGINT, _default_sig_handler)
+                original_handler = signal.signal(
+                    signal.SIGINT,
+                    lambda signum, frame: _default_sig_handler(signum, frame, quiet=quiet),
+                )
             except ValueError:  # pragma: no cover
                 # In rare environments the signal module may still reject handler changes.
                 pass
@@ -191,12 +204,16 @@ def watch_and_transcribe(
         while not _stop_event.is_set():
             all_matches = resolve_input_paths(patterns, audio_exts=audio_exts or AUDIO_EXTENSIONS)
             if verbose:
-                print_status("watch", f"Scan found {len(all_matches)} candidate file(s)")
+                print_status(
+                    "watch",
+                    f"Scan found {len(all_matches)} candidate file(s)",
+                    quiet=quiet,
+                )
             new_paths: list[Path] = []
             for p in all_matches:
                 if p in seen:
                     if verbose:
-                        print_status("watch", f"✗ Already processed: {p}")
+                        print_status("watch", f"✗ Already processed: {escape(str(p))}", quiet=quiet)
                     continue
                 if _needs_transcription(
                     p,
@@ -209,12 +226,17 @@ def watch_and_transcribe(
                     seen.add(p)
                 else:
                     if verbose:
-                        print_status("watch", f"✗ Output exists, skipping: {p}")
+                        print_status(
+                            "watch",
+                            f"✗ Output exists, skipping: {escape(str(p))}",
+                            quiet=quiet,
+                        )
             if new_paths:
                 if verbose:
-                    print_status("watch", f"Found {len(new_paths)} new file(s):")
+                    print_status("watch", f"Found {len(new_paths)} new file(s):", quiet=quiet)
                     for file in new_paths:
-                        get_console().print(f"- {file}")
+                        if not quiet:
+                            get_console().print(f"- {escape(str(file))}")
                 transcribe_fn(new_paths)
                 # Mark activity and reset idle state
                 last_activity = time.monotonic()
@@ -225,7 +247,7 @@ def watch_and_transcribe(
                     cleared = False
             else:
                 if verbose:
-                    print_status("watch", "No new files - waiting…")
+                    print_status("watch", "No new files - waiting…", quiet=quiet)
                 # Idle handling: offload model to CPU if idle timeout exceeded
                 now = time.monotonic()
                 if not unloaded and (now - last_activity) >= IDLE_UNLOAD_TIMEOUT_SEC:
@@ -233,8 +255,8 @@ def watch_and_transcribe(
                         if verbose:
                             print_status(
                                 "watch",
-                                f"Idle for >= {IDLE_UNLOAD_TIMEOUT_SEC}s - "
-                                "offloading model to CPU",
+                                f"Idle for >= {IDLE_UNLOAD_TIMEOUT_SEC}s - offloading model to CPU",
+                                quiet=quiet,
                             )
                         unload_model_to_cpu()
                     finally:
@@ -245,8 +267,8 @@ def watch_and_transcribe(
                         if verbose:
                             print_status(
                                 "watch",
-                                f"Idle for >= {IDLE_CLEAR_TIMEOUT_SEC}s - "
-                                "clearing model cache",
+                                f"Idle for >= {IDLE_CLEAR_TIMEOUT_SEC}s - clearing model cache",
+                                quiet=quiet,
                             )
                         clear_model_cache()
                     finally:

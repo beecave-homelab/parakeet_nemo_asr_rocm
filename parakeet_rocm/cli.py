@@ -78,7 +78,7 @@ def main(
         typer.Exit: Terminate the CLI after displaying help or version.
     """
     if ctx.invoked_subcommand is None:
-        get_console().print(ctx.get_help())
+        get_console().print(ctx.get_help(), markup=False)
         raise typer.Exit()
 
 
@@ -211,6 +211,7 @@ def _setup_watch_mode(
         output_template=output_template,
         watch_base_dirs=base_dirs,
         verbose=verbose,
+        quiet=quiet,
     )
 
 

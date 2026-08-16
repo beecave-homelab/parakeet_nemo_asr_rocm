@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol, TypeVar
 
+from rich.markup import escape
 from rich.progress import Progress, TaskID
 
 from parakeet_rocm.chunking import (
@@ -981,8 +982,8 @@ def transcribe_file(
             print_status(
                 "debug",
                 f"Seg {i}: {chars} chars, {dur:.2f}s, {cps:.1f} cps, "
-                f"{lines} lines [{flag}] -> '"
-                f"{seg.text.replace(chr(10), ' | ')}'",
+                f"{lines} lines [{escape(flag)}] -> '"
+                f"{escape(seg.text.replace(chr(10), ' | '))}'",
                 quiet=ui_config.quiet,
             )
         print_status("debug", "------------------------------\n", quiet=ui_config.quiet)
