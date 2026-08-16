@@ -58,9 +58,9 @@ class TestLoadAndPrepareAudio:
 
     @patch("parakeet_rocm.transcription.file_processor.load_audio")
     @patch("parakeet_rocm.transcription.file_processor.segment_waveform")
-    @patch("typer.echo")
+    @patch("parakeet_rocm.transcription.file_processor.print_status")
     def test_load_and_prepare_audio_verbose(
-        self, mock_echo: Mock, mock_segment: Mock, mock_load: Mock
+        self, mock_print_status: Mock, mock_segment: Mock, mock_load: Mock
     ) -> None:
         """Test verbose logging during audio loading."""
         # Arrange
@@ -78,10 +78,10 @@ class TestLoadAndPrepareAudio:
             quiet=False,
         )
 
-        # Assert - verbose should trigger echo calls
-        assert mock_echo.call_count >= 1
+        # Assert - verbose should trigger Rich-backed status output.
+        assert mock_print_status.call_count >= 1
         # Check that file info was logged
-        call_args = str(mock_echo.call_args_list)
+        call_args = str(mock_print_status.call_args_list)
         assert "audio.wav" in call_args
 
 
