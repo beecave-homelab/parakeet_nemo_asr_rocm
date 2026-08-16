@@ -419,3 +419,196 @@ def test_watch_cooperative_sigint_shutdown(
 
     # The stop event must be cleared after exit (ready for reuse)
     assert not _stop_event.is_set()
+
+
+@patch("parakeet_rocm.utils.watch.time.monotonic")
+@patch("parakeet_rocm.utils.watch.resolve_input_paths")
+@patch("parakeet_rocm.utils.watch.unload_model_to_cpu")
+@patch("parakeet_rocm.utils.watch.clear_model_cache")
+def test_watch_idle_unload_uses_cli_selected_model(
+    mock_clear_cache: MagicMock,
+    mock_unload: MagicMock,
+    mock_resolve: MagicMock,
+    mock_monotonic: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Watcher idle cleanup offloads the CLI-selected model, not the default.
+
+    Regression test for the case where ``--model`` differs from
+    ``PARAKEET_MODEL_NAME``: idle unload must pass the selected model name
+    so the model that is actually cached is moved off the GPU.
+    """
+    from parakeet_rocm.utils.constant import IDLE_UNLOAD_TIMEOUT_SEC
+
+    mock_monotonic.side_effect = [0.0, IDLE_UNLOAD_TIMEOUT_SEC + 1.0]
+    mock_resolve.return_value = []
+    transcribe_mock = MagicMock()
+
+    with patch("time.sleep", side_effect=KeyboardInterrupt()):
+        try:
+            watch_and_transcribe(
+                patterns=[tmp_path],
+                transcribe_fn=transcribe_mock,
+                poll_interval=0.1,
+                output_dir=tmp_path,
+                output_format="txt",
+                output_template="{filename}",
+                model_name="custom/model-x",
+                verbose=False,
+            )
+        except KeyboardInterrupt:
+            pass
+
+    mock_unload.assert_called_once_with("custom/model-x")
+
+
+@patch("parakeet_rocm.utils.watch.time.monotonic")
+@patch("parakeet_rocm.utils.watch.resolve_input_paths")
+@patch("parakeet_rocm.utils.watch.unload_model_to_cpu")
+@patch("parakeet_rocm.utils.watch.clear_model_cache")
+def test_watch_idle_unload_defaults_to_configured_model(
+    mock_clear_cache: MagicMock,
+    mock_unload: MagicMock,
+    mock_resolve: MagicMock,
+    mock_monotonic: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Default-model watch behavior remains unchanged (regression guard)."""
+    from parakeet_rocm.utils import watch as watch_module
+    from parakeet_rocm.utils.constant import IDLE_UNLOAD_TIMEOUT_SEC
+
+    # Reference the binding the watcher module actually uses; a plain
+    # ``from constant import PARAKEET_MODEL_NAME`` here would re-read the
+    # constant module and break if another test reloaded it with a patched
+    # environment (order-dependent test pollution).
+    parakeet_model_name = watch_module.PARAKEET_MODEL_NAME
+
+    mock_monotonic.side_effect = [0.0, IDLE_UNLOAD_TIMEOUT_SEC + 1.0]
+    mock_resolve.return_value = []
+    transcribe_mock = MagicMock()
+
+    with patch("time.sleep", side_effect=KeyboardInterrupt()):
+        try:
+            watch_and_transcribe(
+                patterns=[tmp_path],
+                transcribe_fn=transcribe_mock,
+                poll_interval=0.1,
+                output_dir=tmp_path,
+                output_format="txt",
+                output_template="{filename}",
+                verbose=False,
+            )
+        except KeyboardInterrupt:
+            pass
+
+    mock_unload.assert_called_once_with(parakeet_model_name)
+
+
+@patch("parakeet_rocm.utils.watch.time.monotonic")
+@patch("parakeet_rocm.utils.watch.resolve_input_paths")
+@patch("parakeet_rocm.utils.watch.unload_model_to_cpu")
+@patch("parakeet_rocm.utils.watch.clear_model_cache")
+def test_watch_idle_clear_failure_does_not_mark_complete(
+    mock_clear_cache: MagicMock,
+    mock_unload: MagicMock,
+    mock_resolve: MagicMock,
+    mock_monotonic: MagicMock,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Idle cleanup failure must not be reported as complete.
+
+    If clearing the model cache raises, the watcher stays healthy and the
+    "cleared" state is not marked done, so the next idle poll retries the
+    cleanup instead of silently skipping it.
+    """
+    from parakeet_rocm.utils.constant import IDLE_CLEAR_TIMEOUT_SEC
+
+    mock_monotonic.side_effect = [
+        0.0,
+        IDLE_CLEAR_TIMEOUT_SEC + 1.0,
+        IDLE_CLEAR_TIMEOUT_SEC + 2.0,
+        IDLE_CLEAR_TIMEOUT_SEC + 3.0,
+    ]
+    mock_resolve.return_value = []
+    mock_clear_cache.side_effect = [RuntimeError("boom"), None]
+    transcribe_mock = MagicMock()
+
+    call_count = 0
+
+    def mock_sleep(*_args: object) -> None:
+        nonlocal call_count
+        call_count += 1
+        if call_count >= 2:
+            raise KeyboardInterrupt()
+
+    with patch("time.sleep", side_effect=mock_sleep):
+        try:
+            watch_and_transcribe(
+                patterns=[tmp_path],
+                transcribe_fn=transcribe_mock,
+                poll_interval=0.1,
+                output_dir=tmp_path,
+                output_format="txt",
+                output_template="{filename}",
+                verbose=False,
+            )
+        except KeyboardInterrupt:
+            pass
+
+    # First clear attempt failed, second attempt (retry poll) succeeded.
+    assert mock_clear_cache.call_count == 2
+    captured = capsys.readouterr()
+    assert "Failed to clear model cache - will retry" in captured.err
+
+
+@patch("parakeet_rocm.utils.watch.time.monotonic")
+@patch("parakeet_rocm.utils.watch.resolve_input_paths")
+@patch("parakeet_rocm.utils.watch.unload_model_to_cpu")
+@patch("parakeet_rocm.utils.watch.clear_model_cache")
+def test_watch_idle_unload_failure_does_not_mark_complete(
+    mock_clear_cache: MagicMock,
+    mock_unload: MagicMock,
+    mock_resolve: MagicMock,
+    mock_monotonic: MagicMock,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A failed idle offload must not be reported as complete."""
+    from parakeet_rocm.utils.constant import IDLE_UNLOAD_TIMEOUT_SEC
+
+    mock_monotonic.side_effect = [
+        0.0,
+        IDLE_UNLOAD_TIMEOUT_SEC + 1.0,
+        IDLE_UNLOAD_TIMEOUT_SEC + 2.0,
+        IDLE_UNLOAD_TIMEOUT_SEC + 3.0,
+    ]
+    mock_resolve.return_value = []
+    mock_unload.side_effect = [RuntimeError("boom"), None]
+    transcribe_mock = MagicMock()
+
+    call_count = 0
+
+    def mock_sleep(*_args: object) -> None:
+        nonlocal call_count
+        call_count += 1
+        if call_count >= 2:
+            raise KeyboardInterrupt()
+
+    with patch("time.sleep", side_effect=mock_sleep):
+        try:
+            watch_and_transcribe(
+                patterns=[tmp_path],
+                transcribe_fn=transcribe_mock,
+                poll_interval=0.1,
+                output_dir=tmp_path,
+                output_format="txt",
+                output_template="{filename}",
+                verbose=False,
+            )
+        except KeyboardInterrupt:
+            pass
+
+    assert mock_unload.call_count == 2
+    captured = capsys.readouterr()
+    assert "Failed to offload" in captured.err
