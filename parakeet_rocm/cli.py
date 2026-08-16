@@ -18,6 +18,7 @@ from typing import Annotated
 import typer
 
 from parakeet_rocm import __version__
+from parakeet_rocm.utils.console import get_console
 from parakeet_rocm.utils.constant import (
     ALLOW_UNSAFE_FILENAMES,
     API_SERVER_NAME,
@@ -34,7 +35,6 @@ from parakeet_rocm.utils.constant import (
 RESOLVE_INPUT_PATHS = None  # type: ignore[assignment]
 
 
-# Create the main Typer application instance
 def version_callback(value: bool) -> None:
     """Show the application's version and exit.
 
@@ -46,7 +46,7 @@ def version_callback(value: bool) -> None:
 
     """
     if value:
-        print(f"parakeet-rocm version: {__version__}")
+        get_console().print(f"parakeet-rocm version: {__version__}")
         raise typer.Exit()
 
 
@@ -78,7 +78,7 @@ def main(
         typer.Exit: Terminate the CLI after displaying help or version.
     """
     if ctx.invoked_subcommand is None:
-        typer.echo(ctx.get_help())
+        get_console().print(ctx.get_help(), markup=False)
         raise typer.Exit()
 
 
@@ -211,6 +211,7 @@ def _setup_watch_mode(
         output_template=output_template,
         watch_base_dirs=base_dirs,
         verbose=verbose,
+        quiet=quiet,
     )
 
 

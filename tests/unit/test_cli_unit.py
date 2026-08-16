@@ -16,10 +16,12 @@ from typer.testing import CliRunner
 from parakeet_rocm import cli
 
 
-def test_version_callback() -> None:
-    """Ensure ``--version`` callback exits the process cleanly."""
+def test_version_callback(capsys: pytest.CaptureFixture[str]) -> None:
+    """Ensure ``--version`` callback prints via the shared console and exits."""
     with pytest.raises(typer.Exit):
         cli.version_callback(True)
+    captured = capsys.readouterr()
+    assert "parakeet-rocm version:" in captured.out
 
 
 def test_main_help() -> None:

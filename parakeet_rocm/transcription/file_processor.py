@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol, TypeVar
 
+from rich.markup import escape
 from rich.progress import Progress, TaskID
 
 from parakeet_rocm.chunking import (
@@ -31,6 +32,7 @@ from parakeet_rocm.timestamps.segmentation import segment_words
 from parakeet_rocm.timestamps.word_timestamps import get_word_timestamps
 from parakeet_rocm.transcription.utils import calc_time_stride
 from parakeet_rocm.utils.audio_io import DEFAULT_SAMPLE_RATE, load_audio
+from parakeet_rocm.utils.console import print_error, print_status, print_warning
 from parakeet_rocm.utils.constant import MAX_CPS, MAX_LINE_CHARS
 from parakeet_rocm.utils.file_utils import get_unique_filename
 from parakeet_rocm.utils.logging_config import get_logger
@@ -587,8 +589,6 @@ def _load_and_prepare_audio(
     """
     import time
 
-    import typer
-
     t_load = time.perf_counter()
     wav, sample_rate = load_audio(audio_path, DEFAULT_SAMPLE_RATE)
     load_elapsed = time.perf_counter() - t_load
@@ -596,18 +596,19 @@ def _load_and_prepare_audio(
     segments = segment_waveform(wav, sample_rate, chunk_len_sec, overlap_duration)
 
     if verbose and not quiet:
-        typer.echo(
-            "[file] "
+        print_status(
+            "file",
             f"{audio_path.name}: sr={sample_rate}, dur={duration_sec:.2f}s, "
             f"segments={len(segments)}, chunk={chunk_len_sec}s, "
-            f"overlap={overlap_duration}s, t_load={load_elapsed:.2f}s"
+            f"overlap={overlap_duration}s, t_load={load_elapsed:.2f}s",
+            quiet=quiet,
         )
         # show first few segment ranges
         preview = 3
         for i, (_seg, off) in enumerate(segments[:preview]):
             start = off
             end = off + chunk_len_sec
-            typer.echo(f"[plan] seg{i}: {start:.2f}s→{end:.2f}s")
+            print_status("plan", f"seg{i}: {start:.2f}s→{end:.2f}s", quiet=quiet)
 
     return wav, sample_rate, segments, load_elapsed, duration_sec
 
@@ -635,8 +636,6 @@ def _apply_stabilization(
             successfully; otherwise the original ``aligned_result``.
     """
     import time
-
-    import typer
 
     if not stabilization_config.enabled:
         return aligned_result
@@ -684,29 +683,37 @@ def _apply_stabilization(
 
             # Echo options about to be used by stable-ts
             vad_thr = stabilization_config.vad_threshold if stabilization_config.vad else None
-            typer.echo(
-                "[stable-ts] preparing: "
+            print_status(
+                "stable-ts",
+                "preparing: "
                 f"version={sw_ver or 'unknown'} "
                 f"options={{'demucs': {stabilization_config.demucs}, "
                 f"'vad': {stabilization_config.vad}, "
-                f"'vad_threshold': {vad_thr}}}"
+                f"'vad_threshold': {vad_thr}}}",
+                quiet=ui_config.quiet,
             )
             if stabilization_config.demucs:
-                typer.echo(f"[demucs] enabled: package_version={demucs_ver or 'unknown'}")
+                print_status(
+                    "demucs",
+                    f"enabled: package_version={demucs_ver or 'unknown'}",
+                    quiet=ui_config.quiet,
+                )
             if stabilization_config.vad:
-                typer.echo(
-                    f"[vad] enabled: "
-                    f"threshold={stabilization_config.vad_threshold:.2f} "
-                    f"package_version={vad_ver or 'unknown'}"
+                print_status(
+                    "vad",
+                    f"enabled: threshold={stabilization_config.vad_threshold:.2f} "
+                    f"package_version={vad_ver or 'unknown'}",
+                    quiet=ui_config.quiet,
                 )
             if stabilization_config.demucs or stabilization_config.vad:
                 # We default to stronger silence-suppression-based
                 # realignment so that Demucs/VAD effects are observable
                 # during stabilization.
-                typer.echo(
-                    "[stable-ts] realign: suppress_silence=True "
-                    "suppress_word_ts=True q_levels=10 k_size=3 "
-                    "min_word_dur=0.03 force_order=True"
+                print_status(
+                    "stable-ts",
+                    "realign: suppress_silence=True suppress_word_ts=True "
+                    "q_levels=10 k_size=3 min_word_dur=0.03 force_order=True",
+                    quiet=ui_config.quiet,
                 )
 
         t_stab = time.perf_counter()
@@ -726,10 +733,12 @@ def _apply_stabilization(
         )
         if ui_config.verbose and not ui_config.quiet:
             # Keep existing summary line
-            typer.echo(
-                "[stable-ts] api=transcribe_any "
+            print_status(
+                "stable-ts",
+                "api=transcribe_any "
                 f"demucs={stabilization_config.demucs} vad={stabilization_config.vad} "
-                f"thr={stabilization_config.vad_threshold} t_stab={stab_elapsed:.2f}s"
+                f"thr={stabilization_config.vad_threshold} t_stab={stab_elapsed:.2f}s",
+                quiet=ui_config.quiet,
             )
             # Post-stabilization stats to help verify VAD/Demucs effects
             n_pre = len(pre_words)
@@ -745,19 +754,25 @@ def _apply_stabilization(
             start_shift = (refined[0].start - pre_words[0].start) if (n_pre and n_post) else 0.0
             end_shift = (refined[-1].end - pre_words[-1].end) if (n_pre and n_post) else 0.0
             words_removed = max(0, (n_pre - n_post)) if n_pre and n_post else 0
-            typer.echo(
-                "[stable-ts] result: "
+            print_status(
+                "stable-ts",
+                "result: "
                 f"segments={len(new_segments)} "
                 f"words_pre={n_pre} words_post={n_post} "
                 f"changed≈{changed} ({pct_changed:.1f}%) "
                 f"start_shift={start_shift:+.2f}s "
-                f"end_shift={end_shift:+.2f}s"
+                f"end_shift={end_shift:+.2f}s",
+                quiet=ui_config.quiet,
             )
             if stabilization_config.vad:
-                typer.echo(f"[vad] post-stab: words_removed={words_removed}")
+                print_status(
+                    "vad",
+                    f"post-stab: words_removed={words_removed}",
+                    quiet=ui_config.quiet,
+                )
     except RuntimeError as exc:
         if ui_config.verbose and not ui_config.quiet:
-            typer.echo(f"Stabilization skipped: {exc}", err=True)
+            print_warning(f"Stabilization skipped: {exc}", quiet=ui_config.quiet)
 
     return aligned_result
 
@@ -783,7 +798,7 @@ def _format_and_save_output(
     ``ui_config.verbose`` is true and not quiet, a short summary including the
     output filename, overwrite mode, block count, and time range is printed.
 
-    Parameters:
+    Args:
         aligned_result: Aligned transcription result to format and save.
         formatter: Callable that formats an ``AlignedResult`` to a string (may
             support ``highlight_words``).
@@ -808,8 +823,6 @@ def _format_and_save_output(
         ValueError: If ``output_config.output_template`` contains an unknown
             placeholder.
     """
-    import typer
-
     if allow_unsafe_filenames:
         logger.warning(
             "Relaxed filename validation is active (--allow-unsafe-filenames). "
@@ -880,15 +893,18 @@ def _format_and_save_output(
         if aligned_result.segments:
             first_ts = aligned_result.segments[0].start
             last_ts = aligned_result.segments[-1].end
-            typer.echo(
-                "[output] "
+            print_status(
+                "output",
                 f"path={output_path.name} overwrite={output_config.overwrite} "
                 f"blocks={len(aligned_result.segments)} "
-                f"range={first_ts:.2f}s→{last_ts:.2f}s"
+                f"range={first_ts:.2f}s→{last_ts:.2f}s",
+                quiet=ui_config.quiet,
             )
         else:
-            typer.echo(
-                f"[output] path={output_path.name} overwrite={output_config.overwrite} blocks=0"
+            print_status(
+                "output",
+                f"path={output_path.name} overwrite={output_config.overwrite} blocks=0",
+                quiet=ui_config.quiet,
             )
     return output_path
 
@@ -940,8 +956,6 @@ def transcribe_file(
     """
     import time
 
-    import typer
-
     # Step 1: Load and prepare audio
     wav, sample_rate, segments, load_elapsed, duration_sec = _load_and_prepare_audio(
         audio_path=audio_path,
@@ -973,15 +987,19 @@ def transcribe_file(
     if ui_config.verbose and not ui_config.quiet:
         n_hyps = len(hypotheses) if transcription_config.word_timestamps else 0
         n_txt = len(texts) if not transcription_config.word_timestamps else 0
-        typer.echo(f"[asr] batches done: hyps={n_hyps} texts={n_txt}, t_asr={asr_elapsed:.2f}s")
+        print_status(
+            "asr",
+            f"batches done: hyps={n_hyps} texts={n_txt}, t_asr={asr_elapsed:.2f}s",
+            quiet=ui_config.quiet,
+        )
 
     # Step 3: Process transcription results
     if transcription_config.word_timestamps:
         if not hypotheses:
             if not ui_config.quiet:
-                typer.echo(
-                    f"Warning: No transcription generated for {audio_path.name}",
-                    err=True,
+                print_warning(
+                    f"No transcription generated for {audio_path.name}",
+                    quiet=ui_config.quiet,
                 )
             return None
 
@@ -1006,13 +1024,13 @@ def transcribe_file(
         formatter_spec = get_formatter_spec(output_config.output_format)
         if formatter_spec.requires_word_timestamps:
             if not ui_config.quiet:
-                typer.echo(
+                print_error(
                     (
-                        "Error: Format "
+                        "Format "
                         f"'{output_config.output_format}' requires word timestamps. "
                         "Please use --word-timestamps."
                     ),
-                    err=True,
+                    quiet=ui_config.quiet,
                 )
             return None
         if (
@@ -1025,13 +1043,17 @@ def transcribe_file(
             full_text = _merge_text_segments(texts)
             merge_elapsed = time.perf_counter() - t_merge
             if ui_config.verbose and not ui_config.quiet:
-                typer.echo(f"[merge] t_merge={merge_elapsed:.2f}s")
+                print_status("merge", f"t_merge={merge_elapsed:.2f}s", quiet=ui_config.quiet)
         mock_segment = Segment(text=full_text, words=[], start=0, end=0)
         aligned_result = AlignedResult(segments=[mock_segment], word_segments=[])
 
     # Debug output for subtitle segments
     if ui_config.verbose and transcription_config.word_timestamps and not ui_config.quiet:
-        typer.echo("\n--- Subtitle Segments Debug ---")
+        print_status(
+            "debug",
+            "\n--- Subtitle Segments Debug ---",
+            quiet=ui_config.quiet,
+        )
         for i, seg in enumerate(aligned_result.segments[:10]):
             chars = len(seg.text.replace("\n", " "))
             dur = seg.end - seg.start
@@ -1042,12 +1064,14 @@ def transcribe_file(
                 if cps > MAX_CPS or any(len(line) > MAX_LINE_CHARS for line in seg.text.split("\n"))
                 else "OK"
             )
-            typer.echo(
+            print_status(
+                "debug",
                 f"Seg {i}: {chars} chars, {dur:.2f}s, {cps:.1f} cps, "
-                f"{lines} lines [{flag}] -> '"
-                f"{seg.text.replace(chr(10), ' | ')}'"
+                f"{lines} lines [{escape(flag)}] -> '"
+                f"{escape(seg.text.replace(chr(10), ' | '))}'",
+                quiet=ui_config.quiet,
             )
-        typer.echo("------------------------------\n")
+        print_status("debug", "------------------------------\n", quiet=ui_config.quiet)
 
     # Step 4: Format and save output
     return _format_and_save_output(

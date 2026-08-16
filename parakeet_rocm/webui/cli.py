@@ -5,6 +5,7 @@ from __future__ import annotations
 import typer
 
 from parakeet_rocm.api import create_app
+from parakeet_rocm.utils.console import print_warning
 from parakeet_rocm.utils.constant import GRADIO_SERVER_NAME, GRADIO_SERVER_PORT
 from parakeet_rocm.utils.logging_config import configure_logging, get_logger
 
@@ -40,7 +41,7 @@ def webui(
     configure_logging(level="DEBUG" if debug else "INFO")
 
     if share:
-        logger.warning(
+        print_warning(
             "--share is not supported with mounted Gradio on FastAPI. "
             "Use a tunnel (for example ngrok or cloudflared) to expose this server."
         )

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 import time
 from collections.abc import Callable, Sequence
 from contextlib import nullcontext
@@ -14,7 +13,6 @@ if TYPE_CHECKING:
     from parakeet_rocm.benchmarks.collector import BenchmarkCollector
 
 import typer
-from rich.console import Console
 from rich.progress import (
     BarColumn,
     Progress,
@@ -40,6 +38,7 @@ from parakeet_rocm.transcription.utils import (
     compute_total_segments,
     configure_environment,
 )
+from parakeet_rocm.utils.console import get_console, print_error, print_status
 from parakeet_rocm.utils.constant import (
     BENCHMARK_OUTPUT_DIR,
     DEFAULT_CHUNK_LEN_SEC,
@@ -59,7 +58,7 @@ from parakeet_rocm.utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 
-def _display_settings(  # pragma: no cover - formatting helper
+def _display_settings(
     audio_files: Sequence[Path],
     model_name: str,
     output_dir: Path,
@@ -109,7 +108,9 @@ def _display_settings(  # pragma: no cover - formatting helper
         fp16 (bool): Whether FP16 precision is requested.
         fp32 (bool): Whether FP32 precision is requested.
     """
-    console = Console()
+    if quiet:
+        return
+    console = get_console()
     table = Table(title="CLI Settings", show_header=True, header_style="bold magenta")
     table.add_column("Category", style="cyan", no_wrap=True)
     table.add_column("Setting", style="green")
@@ -231,8 +232,10 @@ def cli_transcribe(
     if quiet:
         verbose = False
 
+    console = get_console()
+
     if fp32 and fp16:
-        typer.echo("Error: Cannot specify both --fp32 and --fp16", err=True)
+        print_error("Cannot specify both --fp32 and --fp16")
         raise typer.Exit(code=1)
 
     if stream:
@@ -243,28 +246,35 @@ def cli_transcribe(
         if overlap_duration >= chunk_len_sec:
             overlap_duration = max(0, chunk_len_sec // 2)
         if verbose:
-            typer.echo(
-                f"[stream] Using chunk_len_sec={chunk_len_sec},\n"
-                f"overlap_duration={overlap_duration}"
+            print_status(
+                "stream",
+                f"Using chunk_len_sec={chunk_len_sec},\noverlap_duration={overlap_duration}",
+                quiet=quiet,
             )
 
     if verbose and not quiet:
         # Show effective configuration resolved via utils.constant
-        typer.echo(
-            f"[env] NEMO_LOG_LEVEL={NEMO_LOG_LEVEL}, "
-            f"TRANSFORMERS_VERBOSITY={TRANSFORMERS_VERBOSITY}"
+        print_status(
+            "env",
+            f"NEMO_LOG_LEVEL={NEMO_LOG_LEVEL}, "
+            f"TRANSFORMERS_VERBOSITY={TRANSFORMERS_VERBOSITY}",
+            quiet=quiet,
         )
-        typer.echo(
-            f"[env] CHUNK_LEN_SEC={DEFAULT_CHUNK_LEN_SEC}, "
+        print_status(
+            "env",
+            f"CHUNK_LEN_SEC={DEFAULT_CHUNK_LEN_SEC}, "
             f"STREAM_CHUNK_SEC={DEFAULT_STREAM_CHUNK_SEC}, "
             f"MAX_LINE_CHARS={MAX_LINE_CHARS}, "
-            f"MAX_LINES_PER_BLOCK={MAX_LINES_PER_BLOCK}"
+            f"MAX_LINES_PER_BLOCK={MAX_LINES_PER_BLOCK}",
+            quiet=quiet,
         )
-        typer.echo(
-            f"[env] MAX_SEGMENT_DURATION_SEC={MAX_SEGMENT_DURATION_SEC}, "
+        print_status(
+            "env",
+            f"MAX_SEGMENT_DURATION_SEC={MAX_SEGMENT_DURATION_SEC}, "
             f"MIN_SEGMENT_DURATION_SEC={MIN_SEGMENT_DURATION_SEC}, "
             f"MAX_CPS={MAX_CPS}, "
-            f"DISPLAY_BUFFER_SEC={DISPLAY_BUFFER_SEC}"
+            f"DISPLAY_BUFFER_SEC={DISPLAY_BUFFER_SEC}",
+            quiet=quiet,
         )
 
     if not quiet:
@@ -292,7 +302,7 @@ def cli_transcribe(
             fp16,
             fp32,
         )
-        typer.echo()
+        console.print()
 
     ensure_dir_writable(output_dir)
 
@@ -347,7 +357,11 @@ def cli_transcribe(
         gpu_sampler = GpuUtilSampler(interval_sec=1.0)
         gpu_sampler.start()
         if not quiet:
-            typer.echo("[benchmark] Enabled - capturing runtime and GPU metrics")
+            print_status(
+                "benchmark",
+                "Enabled - capturing runtime and GPU metrics",
+                quiet=quiet,
+            )
 
     t0 = time.perf_counter()
     from parakeet_rocm.models.parakeet import get_model
@@ -367,19 +381,23 @@ def cli_transcribe(
                 cache_info = _get_cached_model.cache_info()  # type: ignore[attr-defined]
             except Exception:  # pragma: no cover - cache info optional
                 cache_info = None
-            typer.echo(f"[model] device={device}, dtype={dtype}, cache={cache_info}")
+            print_status(
+                "model",
+                f"device={device}, dtype={dtype}, cache={cache_info}",
+                quiet=quiet,
+            )
         except Exception:  # pragma: no cover
             pass
 
     try:
         formatter = get_formatter(output_format)
     except ValueError as exc:
-        typer.echo(f"Error: {exc}", err=True)
+        print_error(str(exc))
         raise typer.Exit(code=1) from exc
 
     total_segments = compute_total_segments(audio_files, chunk_len_sec, overlap_duration)
     if verbose and not quiet:
-        typer.echo(f"[plan] total_segments={total_segments}")
+        print_status("plan", f"total_segments={total_segments}", quiet=quiet)
 
     progress_cm = (
         nullcontext()
@@ -404,10 +422,11 @@ def cli_transcribe(
         if progress_callback is not None:
             progress_callback(current_batch, total_batches)
             if verbose and not quiet:
-                print(
-                    f"[progress] {current_batch}/{total_batches} batches",
-                    file=sys.stderr,
-                    flush=True,
+                print_status(
+                    "progress",
+                    f"{current_batch}/{total_batches} batches",
+                    quiet=quiet,
+                    err=True,
                 )
 
     with progress_cm as progress:
@@ -462,7 +481,7 @@ def cli_transcribe(
                 created_files.append(output_path)
     if not quiet:
         for p in created_files:
-            typer.echo(f'Created "{p}"')
+            print_status("output", f'Created "{p}"', quiet=quiet)
 
     elapsed = time.perf_counter() - t0
 
@@ -513,9 +532,13 @@ def cli_transcribe(
         if collector is None:
             benchmark_path = benchmark_collector.write_json()
             if not quiet:
-                typer.echo(f"[benchmark] Metrics written to: {benchmark_path}")
+                print_status(
+                    "benchmark",
+                    f"Metrics written to: {benchmark_path}",
+                    quiet=quiet,
+                )
 
     if verbose and not quiet:
-        typer.echo(f"[timing] total_wall={elapsed:.2f}s")
-        typer.echo("Done.")
+        print_status("timing", f"total_wall={elapsed:.2f}s", quiet=quiet)
+        print_status("done", "Done.", quiet=quiet)
     return created_files
