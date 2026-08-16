@@ -74,8 +74,9 @@ class _FakeContext:
 class _FakeBlocks(_FakeContext):
     """Fake `gr.Blocks` root with a `.launch()` method."""
 
-    def __init__(self, *_args: object, **_kwargs: object) -> None:
+    def __init__(self, *_args: object, **kwargs: object) -> None:
         super().__init__()
+        self.init_kwargs: dict[str, object] = dict(kwargs)
         self.launch_calls: list[dict[str, object]] = []
 
     def launch(self, **kwargs: object) -> None:
@@ -326,6 +327,22 @@ def test_webui_app_build_and_handlers(monkeypatch: pytest.MonkeyPatch, tmp_path:
     blocks = app_mod.build_app(job_manager=fake_jm, analytics_enabled=False)
     assert isinstance(blocks, _FakeBlocks)
 
+    # Blocks retain visual styling. Install metadata is applied only by the
+    # FastAPI composition, which owns the referenced static routes.
+    assert blocks.init_kwargs["title"] == "Parakeet-ROCm WebUI"
+    assert blocks.init_kwargs["analytics_enabled"] is False
+    assert blocks.init_kwargs["theme"] is not None
+    assert blocks.init_kwargs["css"] == app_mod.WEBUI_CONTAINER_CSS
+    assert "head" not in blocks.init_kwargs
+    markdown_values = [
+        component.args[0]
+        for component in gr._created
+        if component.args and isinstance(component.args[0], str)
+    ]
+    assert app_mod.WEBUI_TITLE_HTML in markdown_values
+    assert "./parakeet-assets/parakeet-rocm-icon.svg" in app_mod.WEBUI_TITLE_HTML
+    assert "🎤" not in app_mod.WEBUI_TITLE_HTML
+
     # Find the registered click handlers.
     click_fns = [c._click_fn for c in gr._created if getattr(c, "_click_fn", None) is not None]
     assert click_fns
@@ -464,8 +481,11 @@ def test_webui_app_build_and_handlers(monkeypatch: pytest.MonkeyPatch, tmp_path:
     assert isinstance(cleared, dict)
 
 
-def test_webui_app_launch_and_cleanup(monkeypatch: pytest.MonkeyPatch) -> None:
-    """`launch_app()` should call `.launch()` on the built app and cleanup should be safe."""
+def test_launch_app__uses_root_mounted_fastapi_composition_and_cleans_models(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """`launch_app()` should launch the root-mounted FastAPI composition."""
     _install_fake_gradio(monkeypatch)
     _install_fake_torch(monkeypatch)
     _install_fake_scipy(monkeypatch)
@@ -475,22 +495,56 @@ def test_webui_app_launch_and_cleanup(monkeypatch: pytest.MonkeyPatch) -> None:
     sys.modules.pop("parakeet_rocm.webui.app", None)
     app_mod = importlib.import_module("parakeet_rocm.webui.app")
 
-    # Avoid spawning background threads / signal handlers during unit tests.
-    monkeypatch.setattr(app_mod, "_register_shutdown_handlers", lambda: None)
-    monkeypatch.setattr(app_mod, "_start_idle_offload_thread", lambda _jm: None)
     monkeypatch.setattr(app_mod, "configure_logging", lambda **_kwargs: None)
 
-    class _JM:  # noqa: D106
-        pass
+    fake_api = types.ModuleType("parakeet_rocm.api")
+    created: dict[str, object] = {}
 
-    monkeypatch.setattr(app_mod, "JobManager", _JM)
+    def create_app(**kwargs: object) -> object:
+        created.update(kwargs)
+        return "root-mounted-app"
 
-    built = _FakeBlocks()
-    monkeypatch.setattr(app_mod, "build_app", lambda **_kwargs: built)
+    fake_api.create_app = create_app  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "parakeet_rocm.api", fake_api)
+    fake_uvicorn = types.ModuleType("uvicorn")
+    runs: list[tuple[object, dict[str, object]]] = []
 
-    app_mod.launch_app(server_name="127.0.0.1", server_port=9999, debug=True)
-    assert built.launch_calls
+    def run(app: object, **kwargs: object) -> None:
+        runs.append((app, kwargs))
+
+    fake_uvicorn.run = run  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "uvicorn", fake_uvicorn)
+
+    caplog.set_level("WARNING", logger=app_mod.logger.name)
+    app_mod.launch_app(server_name="127.0.0.1", server_port=9999, share=True, debug=True)
+    assert created == {"ui_path": ""}
+    assert "share links are not supported" in caplog.text
+    assert runs == [
+        (
+            "root-mounted-app",
+            {"host": "127.0.0.1", "port": 9999, "log_level": "debug"},
+        )
+    ]
 
     app_mod._cleanup_models()
     assert fake_models.unload_model_to_cpu_called
     assert fake_models.clear_model_cache_called
+
+
+@pytest.mark.parametrize("reserved_key", ["host", "port", "log_level"])
+def test_launch_app__rejects_reserved_uvicorn_kwargs(
+    monkeypatch: pytest.MonkeyPatch,
+    reserved_key: str,
+) -> None:
+    """launch_app should reject kwargs already controlled by explicit arguments."""
+    _install_fake_gradio(monkeypatch)
+    _install_fake_torch(monkeypatch)
+    _install_fake_scipy(monkeypatch)
+    _install_fake_model_accessors(monkeypatch)
+    _install_fake_webui_job_manager(monkeypatch)
+    sys.modules.pop("parakeet_rocm.webui.app", None)
+    app_mod = importlib.import_module("parakeet_rocm.webui.app")
+    monkeypatch.setattr(app_mod, "configure_logging", lambda **_kwargs: None)
+
+    with pytest.raises(ValueError, match=reserved_key):
+        app_mod.launch_app(**{reserved_key: "conflict"})

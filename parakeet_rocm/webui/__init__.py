@@ -8,16 +8,15 @@ of concerns, protocol-oriented design for testability, and comprehensive
 input validation.
 
 Examples:
-    Launch the WebUI from code:
+    Launch the supported standalone WebUI composition from code:
 
     >>> from parakeet_rocm.webui import launch_app
     >>> launch_app()
 
-    Or build and customize the app:
+    Build Blocks for embedding in the FastAPI composition:
 
     >>> from parakeet_rocm.webui import build_app
-    >>> app = build_app()
-    >>> app.launch(server_name="localhost", server_port=7860)
+    >>> blocks = build_app()
 """
 
 from __future__ import annotations

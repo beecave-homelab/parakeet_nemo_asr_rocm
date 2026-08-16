@@ -100,6 +100,91 @@ def _validate_filename_component(
     return value
 
 
+def validate_output_filenames(
+    audio_files: Sequence[Path],
+    output_template: str,
+    *,
+    allow_unsafe: bool = False,
+) -> list[tuple[Path, str]]:
+    """Pre-flight validation of all output filename components for a batch.
+
+    Validates every filename-derived value that will be used during output
+    rendering, so that invalid configurations are caught **before** expensive
+    model inference begins.
+
+    For each audio file the following components are checked via
+    ``_validate_filename_component``:
+
+    - ``audio_path.stem`` (input filename without extension)
+    - ``audio_path.parent.name`` (parent directory name)
+    - The rendered template result using ``{filename}``, ``{index}``,
+      ``{parent}``, and ``{date}`` placeholders
+
+    Args:
+        audio_files: Audio file paths whose output names should be validated.
+        output_template: Filename template supporting ``{filename}``,
+            ``{index}``, ``{parent}``, and ``{date}`` placeholders.
+        allow_unsafe: When ``True``, use relaxed filename validation that
+            permits spaces, brackets, quotes, and other non-ASCII characters
+            while still enforcing security invariants.
+
+    Returns:
+        A list of ``(path, error_message)`` tuples.  The list is empty when
+        all filenames pass validation.
+    """
+    errors: list[tuple[Path, str]] = []
+    date_str = datetime.now().strftime("%Y%m%d")
+
+    for file_idx, audio_path in enumerate(audio_files, start=1):
+        parent_name = audio_path.parent.name or "root"
+
+        # Validate input filename stem
+        try:
+            _validate_filename_component(
+                audio_path.stem,
+                label="Input filename",
+                allow_unsafe=allow_unsafe,
+            )
+        except ValueError as exc:
+            errors.append((audio_path, str(exc)))
+            continue
+
+        # Validate parent directory name
+        try:
+            _validate_filename_component(
+                parent_name,
+                label="Input parent directory",
+                allow_unsafe=allow_unsafe,
+            )
+        except ValueError as exc:
+            errors.append((audio_path, str(exc)))
+            continue
+
+        # Validate rendered template result
+        template_context = {
+            "filename": audio_path.stem,
+            "index": file_idx,
+            "parent": parent_name,
+            "date": date_str,
+        }
+        try:
+            filename_part = output_template.format(**template_context)
+        except (AttributeError, IndexError, KeyError, TypeError, ValueError) as exc:
+            errors.append((audio_path, f"Invalid --output-template: {exc}"))
+            continue
+
+        try:
+            _validate_filename_component(
+                filename_part,
+                label="Output template result",
+                allow_unsafe=allow_unsafe,
+            )
+        except ValueError as exc:
+            errors.append((audio_path, str(exc)))
+
+    return errors
+
+
 def _dedupe_nearby_repeats(
     tokens: list[str],
     *,

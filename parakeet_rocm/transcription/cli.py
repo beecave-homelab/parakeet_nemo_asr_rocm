@@ -30,7 +30,10 @@ from parakeet_rocm.config import (
     UIConfig,
 )
 from parakeet_rocm.formatting import get_formatter
-from parakeet_rocm.transcription.file_processor import transcribe_file
+from parakeet_rocm.transcription.file_processor import (
+    transcribe_file,
+    validate_output_filenames,
+)
 from parakeet_rocm.transcription.utils import (
     compute_total_segments,
     configure_environment,
@@ -302,6 +305,23 @@ def cli_transcribe(
         console.print()
 
     ensure_dir_writable(output_dir)
+
+    # Pre-flight filename validation — fail before expensive model loading
+    validation_errors = validate_output_filenames(
+        audio_files,
+        output_template,
+        allow_unsafe=allow_unsafe_filenames,
+    )
+    if validation_errors:
+        for path, msg in validation_errors:
+            typer.echo(f"Error: {path}: {msg}", err=True)
+        if not allow_unsafe_filenames:
+            typer.echo(
+                "Hint: use --allow-unsafe-filenames to allow spaces and "
+                "special characters in filenames.",
+                err=True,
+            )
+        raise typer.Exit(code=1)
 
     # Initialize benchmark collector and GPU sampler if benchmark mode is enabled
     benchmark_collector = collector

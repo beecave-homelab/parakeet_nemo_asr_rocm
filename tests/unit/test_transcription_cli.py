@@ -196,3 +196,100 @@ def test_transcribe_module_exports_cli_transcribe() -> None:
     from parakeet_rocm import transcribe
 
     assert transcribe.cli_transcribe is transcription_cli.cli_transcribe
+
+
+# -----------------------------------------------------------------------
+# Fail-fast: filename validation exits before model loading
+# -----------------------------------------------------------------------
+class TestFilenameValidationFailFast:
+    """Ensure invalid filenames cause early exit without loading the model."""
+
+    def test_cli_transcribe__invalid_filename_exits_before_model_load(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Invalid input filename in strict mode causes exit before model load."""
+        bad = tmp_path / "bad file.wav"
+
+        model_loaded = {"called": False}
+
+        def _assert_never_called(_name: str) -> None:
+            model_loaded["called"] = True
+            raise AssertionError("get_model should not be called on invalid filenames")
+
+        monkeypatch.setattr(transcription_cli, "configure_environment", lambda _v: None)
+        fake_model_module = types.ModuleType("parakeet_rocm.models.parakeet")
+        fake_model_module.get_model = _assert_never_called
+        monkeypatch.setitem(sys.modules, "parakeet_rocm.models.parakeet", fake_model_module)
+
+        with pytest.raises(typer.Exit):
+            transcription_cli.cli_transcribe(
+                audio_files=[bad],
+                output_dir=tmp_path,
+                output_format="txt",
+                quiet=True,
+                no_progress=True,
+            )
+
+        assert not model_loaded["called"], "get_model was called despite invalid filename"
+
+    def test_cli_transcribe__invalid_template_placeholder_exits_before_model_load(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Invalid output template placeholder causes exit before model load."""
+        audio = tmp_path / "good.wav"
+        audio.write_text("x")
+
+        model_loaded = {"called": False}
+
+        def _assert_never_called(_name: str) -> None:
+            model_loaded["called"] = True
+            raise AssertionError("get_model should not be called on invalid template")
+
+        monkeypatch.setattr(transcription_cli, "configure_environment", lambda _v: None)
+        fake_model_module = types.ModuleType("parakeet_rocm.models.parakeet")
+        fake_model_module.get_model = _assert_never_called
+        monkeypatch.setitem(sys.modules, "parakeet_rocm.models.parakeet", fake_model_module)
+
+        with pytest.raises(typer.Exit):
+            transcription_cli.cli_transcribe(
+                audio_files=[audio],
+                output_dir=tmp_path,
+                output_format="txt",
+                output_template="{unknown}",
+                quiet=True,
+                no_progress=True,
+            )
+
+        assert not model_loaded["called"], "get_model was called despite invalid template"
+
+    def test_cli_transcribe__valid_filenames_proceed_to_model_load(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Valid filenames allow execution to proceed to model loading."""
+        audio = tmp_path / "good.wav"
+        audio.write_text("x")
+
+        model_loaded = {"called": False}
+
+        def _record_model_load(_name: str) -> _DummyModel:
+            model_loaded["called"] = True
+            return _DummyModel()
+
+        monkeypatch.setattr(transcription_cli, "configure_environment", lambda _v: None)
+        monkeypatch.setattr(transcription_cli, "compute_total_segments", lambda *_: 0)
+        monkeypatch.setattr(transcription_cli, "get_formatter", lambda _fmt: object())
+        monkeypatch.setattr(transcription_cli, "transcribe_file", lambda *a, **kw: None)
+
+        fake_model_module = types.ModuleType("parakeet_rocm.models.parakeet")
+        fake_model_module.get_model = _record_model_load
+        monkeypatch.setitem(sys.modules, "parakeet_rocm.models.parakeet", fake_model_module)
+
+        transcription_cli.cli_transcribe(
+            audio_files=[audio],
+            output_dir=tmp_path,
+            output_format="txt",
+            quiet=True,
+            no_progress=True,
+        )
+
+        assert model_loaded["called"], "get_model was not called for valid filenames"

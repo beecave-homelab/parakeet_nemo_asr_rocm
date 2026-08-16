@@ -1,14 +1,19 @@
-"""Tests for filename validation in ``_validate_filename_component``.
+"""Tests for filename validation helpers and batch pre-flight checks.
 
 Covers strict mode, relaxed (``allow_unsafe``) mode, and security invariants
-that must hold in **both** modes.
+that must hold in **both** modes, plus batch pre-flight validation.
 """
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
-from parakeet_rocm.transcription.file_processor import _validate_filename_component
+from parakeet_rocm.transcription.file_processor import (
+    _validate_filename_component,
+    validate_output_filenames,
+)
 
 
 # -----------------------------------------------------------------------
@@ -179,3 +184,76 @@ class TestSecurityInvariants:
                 label="test",
                 allow_unsafe=True,
             )
+
+
+# -----------------------------------------------------------------------
+# Batch pre-flight validation — validate_output_filenames
+# -----------------------------------------------------------------------
+class TestValidateOutputFilenames:
+    """Batch pre-flight validation of output filenames."""
+
+    def test_validate_output_filenames__valid_batch_returns_empty(self, tmp_path: Path) -> None:
+        """A valid batch with simple filenames passes without errors."""
+        audio_a = tmp_path / "a.wav"
+        audio_b = tmp_path / "b.wav"
+        errors = validate_output_filenames([audio_a, audio_b], "{filename}")
+        assert errors == []
+
+    def test_validate_output_filenames__single_invalid_filename_reported(
+        self, tmp_path: Path
+    ) -> None:
+        """A batch with one invalid filename reports an error for that file."""
+        good = tmp_path / "good.wav"
+        bad = tmp_path / "bad file.wav"
+        errors = validate_output_filenames([good, bad], "{filename}")
+        assert len(errors) == 1
+        assert bad in errors[0]
+
+    def test_validate_output_filenames__multiple_invalid_filenames_all_reported(
+        self, tmp_path: Path
+    ) -> None:
+        """Multiple invalid filenames are all reported, not just the first."""
+        bad1 = tmp_path / "bad one.wav"
+        bad2 = tmp_path / "bad two.wav"
+        errors = validate_output_filenames([bad1, bad2], "{filename}")
+        assert len(errors) == 2
+
+    def test_validate_output_filenames__strict_rejects_special_chars(self, tmp_path: Path) -> None:
+        """Strict mode rejects special characters in filenames."""
+        bad = tmp_path / "file[1].wav"
+        errors = validate_output_filenames([bad], "{filename}", allow_unsafe=False)
+        assert len(errors) == 1
+
+    def test_validate_output_filenames__relaxed_accepts_special_chars(self, tmp_path: Path) -> None:
+        """Relaxed mode accepts special characters in filenames."""
+        audio = tmp_path / "file[1].wav"
+        errors = validate_output_filenames([audio], "{filename}", allow_unsafe=True)
+        assert errors == []
+
+    def test_validate_output_filenames__unknown_template_placeholder_reported(
+        self, tmp_path: Path
+    ) -> None:
+        """Unknown placeholders in the output template are caught."""
+        audio = tmp_path / "good.wav"
+        errors = validate_output_filenames([audio], "{unknown}")
+        assert len(errors) == 1
+        assert "Invalid --output-template" in errors[0][1]
+
+    def test_validate_output_filenames__invalid_parent_directory_reported(
+        self, tmp_path: Path
+    ) -> None:
+        """Invalid parent directory name is reported."""
+        bad_dir = tmp_path / "bad dir"
+        bad_dir.mkdir()
+        audio = bad_dir / "good.wav"
+        errors = validate_output_filenames([audio], "{parent}")
+        assert len(errors) == 1
+
+    def test_validate_output_filenames__invalid_template_result_reported(
+        self, tmp_path: Path
+    ) -> None:
+        """Rendered template result that fails validation is reported."""
+        audio = tmp_path / "good.wav"
+        # Template produces a slash which is always forbidden
+        errors = validate_output_filenames([audio], "{filename}/{index}")
+        assert len(errors) == 1
