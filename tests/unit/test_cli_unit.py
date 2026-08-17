@@ -135,7 +135,7 @@ def test_api_command_starts_api_only_app(monkeypatch: pytest.MonkeyPatch) -> Non
     assert called["share"] is False
 
 
-def test_watch_mode_forwards_cli_selected_model(
+def test_transcribe__forwards_selected_model_in_watch_mode(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """--watch mode must forward the CLI-selected model to the watcher.

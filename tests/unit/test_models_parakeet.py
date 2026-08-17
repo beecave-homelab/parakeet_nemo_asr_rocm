@@ -111,12 +111,23 @@ def test_unload_model_to_cpu_no_gpu() -> None:
         mock_model.to.assert_called_with("cpu")
 
 
-def test_clear_model_cache_exception() -> None:
-    """Tests exception handling in clear_model_cache."""
+def test_clear_model_cache__returns_false_when_eviction_fails() -> None:
+    """Cache eviction failure is reported as False, not swallowed silently."""
     mock_fn = MagicMock()
     mock_fn.cache_clear.side_effect = RuntimeError("fail")
     with patch("parakeet_rocm.models.parakeet._get_cached_model", mock_fn):
-        clear_model_cache()
+        assert clear_model_cache() is False
+
+
+def test_clear_model_cache__returns_true_on_success() -> None:
+    """Successful eviction (with best-effort allocator release) returns True."""
+    mock_fn = MagicMock()
+    with (
+        patch("parakeet_rocm.models.parakeet._get_cached_model", mock_fn),
+        patch("parakeet_rocm.models.parakeet._release_gpu_allocator_memory"),
+    ):
+        assert clear_model_cache() is True
+    mock_fn.cache_clear.assert_called_once()
 
 
 @patch("parakeet_rocm.models.parakeet._load_model")
@@ -326,7 +337,7 @@ def test_peek_cached_model_real_path(mock_load: MagicMock) -> None:
     assert "test_model_peek" not in _cached_keys
 
 
-def test_clear_model_cache_releases_gpu_allocator() -> None:
+def test_clear_model_cache__releases_gpu_allocator() -> None:
     """Clearing the cache must also release the CUDA/ROCm allocator.
 
     Regression test: ``clear_model_cache()`` used to evict the LRU
@@ -347,7 +358,7 @@ def test_clear_model_cache_releases_gpu_allocator() -> None:
     mock_empty.assert_called_once()
 
 
-def test_clear_model_cache_gc_only_when_no_gpu() -> None:
+def test_clear_model_cache__gc_only_when_no_gpu() -> None:
     """Without CUDA available the release degrades to a GC-only pass."""
     mock_fn = MagicMock()
     with (
@@ -361,7 +372,7 @@ def test_clear_model_cache_gc_only_when_no_gpu() -> None:
     mock_empty.assert_not_called()
 
 
-def test_clear_model_cache_allocator_errors_swallowed() -> None:
+def test_clear_model_cache__allocator_errors_swallowed() -> None:
     """gc/empty_cache failures never propagate to the idle-cleanup caller."""
     mock_fn = MagicMock()
     with (
@@ -374,7 +385,7 @@ def test_clear_model_cache_allocator_errors_swallowed() -> None:
     mock_fn.cache_clear.assert_called_once()
 
 
-def test_clear_model_cache_skips_release_when_cache_clear_fails() -> None:
+def test_clear_model_cache__skips_release_when_cache_clear_fails() -> None:
     """When the LRU eviction itself fails, no allocator release is attempted."""
     mock_fn = MagicMock()
     mock_fn.cache_clear.side_effect = RuntimeError("fail")
@@ -382,11 +393,12 @@ def test_clear_model_cache_skips_release_when_cache_clear_fails() -> None:
         patch("parakeet_rocm.models.parakeet._get_cached_model", mock_fn),
         patch("parakeet_rocm.models.parakeet._release_gpu_allocator_memory") as mock_release,
     ):
-        clear_model_cache()
+        result = clear_model_cache()
+    assert result is False
     mock_release.assert_not_called()
 
 
-def test_clear_model_cache_release_allocator_flag() -> None:
+def test_clear_model_cache__release_allocator_flag() -> None:
     """release_allocator=False keeps the pure LRU-eviction behavior."""
     mock_fn = MagicMock()
     with (

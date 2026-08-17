@@ -425,7 +425,7 @@ def test_watch_cooperative_sigint_shutdown(
 @patch("parakeet_rocm.utils.watch.resolve_input_paths")
 @patch("parakeet_rocm.utils.watch.unload_model_to_cpu")
 @patch("parakeet_rocm.utils.watch.clear_model_cache")
-def test_watch_idle_unload_uses_cli_selected_model(
+def test_watch_and_transcribe__forwards_cli_selected_model_to_idle_unload(
     mock_clear_cache: MagicMock,
     mock_unload: MagicMock,
     mock_resolve: MagicMock,
@@ -466,7 +466,7 @@ def test_watch_idle_unload_uses_cli_selected_model(
 @patch("parakeet_rocm.utils.watch.resolve_input_paths")
 @patch("parakeet_rocm.utils.watch.unload_model_to_cpu")
 @patch("parakeet_rocm.utils.watch.clear_model_cache")
-def test_watch_idle_unload_defaults_to_configured_model(
+def test_watch_and_transcribe__unloads_configured_model_by_default(
     mock_clear_cache: MagicMock,
     mock_unload: MagicMock,
     mock_resolve: MagicMock,
@@ -508,7 +508,7 @@ def test_watch_idle_unload_defaults_to_configured_model(
 @patch("parakeet_rocm.utils.watch.resolve_input_paths")
 @patch("parakeet_rocm.utils.watch.unload_model_to_cpu")
 @patch("parakeet_rocm.utils.watch.clear_model_cache")
-def test_watch_idle_clear_failure_does_not_mark_complete(
+def test_watch_and_transcribe__retries_idle_clear_when_eviction_fails(
     mock_clear_cache: MagicMock,
     mock_unload: MagicMock,
     mock_resolve: MagicMock,
@@ -518,9 +518,11 @@ def test_watch_idle_clear_failure_does_not_mark_complete(
 ) -> None:
     """Idle cleanup failure must not be reported as complete.
 
-    If clearing the model cache raises, the watcher stays healthy and the
-    "cleared" state is not marked done, so the next idle poll retries the
-    cleanup instead of silently skipping it.
+    When cache eviction fails (``clear_model_cache`` returns ``False``),
+    the watcher stays healthy and the "cleared" state is not marked done,
+    so the next idle poll retries the cleanup instead of silently skipping
+    it. This mirrors the real failure mode: ``clear_model_cache()`` never
+    raises, it reports failure via its bool return value.
     """
     from parakeet_rocm.utils.constant import IDLE_CLEAR_TIMEOUT_SEC
 
@@ -531,7 +533,9 @@ def test_watch_idle_clear_failure_does_not_mark_complete(
         IDLE_CLEAR_TIMEOUT_SEC + 3.0,
     ]
     mock_resolve.return_value = []
-    mock_clear_cache.side_effect = [RuntimeError("boom"), None]
+    # Real failure mode: clear_model_cache() returns False on eviction
+    # failure instead of raising; the second (retry) call succeeds.
+    mock_clear_cache.side_effect = [False, True]
     transcribe_mock = MagicMock()
 
     call_count = 0
@@ -566,7 +570,7 @@ def test_watch_idle_clear_failure_does_not_mark_complete(
 @patch("parakeet_rocm.utils.watch.resolve_input_paths")
 @patch("parakeet_rocm.utils.watch.unload_model_to_cpu")
 @patch("parakeet_rocm.utils.watch.clear_model_cache")
-def test_watch_idle_unload_failure_does_not_mark_complete(
+def test_watch_and_transcribe__retries_idle_unload_on_failure(
     mock_clear_cache: MagicMock,
     mock_unload: MagicMock,
     mock_resolve: MagicMock,
