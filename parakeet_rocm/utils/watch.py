@@ -290,25 +290,30 @@ def watch_and_transcribe(
                         unloaded = True
                 # If still idle past clear timeout, drop the cache entirely
                 if not cleared and (now - last_activity) >= IDLE_CLEAR_TIMEOUT_SEC:
+                    if verbose:
+                        print_status(
+                            "watch",
+                            f"Idle for >= {IDLE_CLEAR_TIMEOUT_SEC}s - clearing model cache",
+                            quiet=quiet,
+                        )
+                    # clear_model_cache() reports eviction failure by
+                    # returning False instead of raising; a failed clear
+                    # leaves ``cleared`` unset and the next idle poll retries.
+                    # The except below is a belt-and-braces guard for
+                    # unexpected errors (e.g. a future re-raise variant).
                     try:
-                        if verbose:
-                            print_status(
-                                "watch",
-                                f"Idle for >= {IDLE_CLEAR_TIMEOUT_SEC}s - clearing model cache",
-                                quiet=quiet,
-                            )
-                        clear_model_cache()
+                        cleared = clear_model_cache()
                     except Exception:
                         # Never let idle cleanup crash the watcher; retry on
                         # the next idle poll instead of marking it done.
+                        cleared = False
+                    if not cleared:
                         print_status(
                             "watch",
                             "Failed to clear model cache - will retry",
                             quiet=quiet,
                             err=True,
                         )
-                    else:
-                        cleared = True
             time.sleep(poll_interval)
     finally:
         # Restore the previous SIGINT handler so the caller's signal
