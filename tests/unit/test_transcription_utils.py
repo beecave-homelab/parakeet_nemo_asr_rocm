@@ -29,9 +29,18 @@ class TestConfigureEnvironment:
         assert os.environ.get("NEMO_LOG_LEVEL") == "INFO"
         assert os.environ.get("TRANSFORMERS_VERBOSITY") == "info"
 
-    def test_configure_environment_verbose_disabled(self) -> None:
+    def test_configure_environment_verbose_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test non-verbose mode sets ERROR logging."""
-        # Arrange & Act
+        # Arrange
+        # Pin the project defaults: they are read from the environment at
+        # import time, so an ambient `.env` (e.g. TRANSFORMERS_VERBOSITY=error)
+        # would otherwise change what non-verbose mode resets to.
+        import parakeet_rocm.utils.constant as constant_mod
+
+        monkeypatch.setattr(constant_mod, "NEMO_LOG_LEVEL", "ERROR")
+        monkeypatch.setattr(constant_mod, "TRANSFORMERS_VERBOSITY", "ERROR")
+
+        # Act
         configure_environment(verbose=False)
 
         # Assert
