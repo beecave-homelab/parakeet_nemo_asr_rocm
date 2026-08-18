@@ -17,7 +17,7 @@ def _stub_model_module(monkeypatch: pytest.MonkeyPatch) -> None:
     """Avoid importing optional NeMo dependencies in API integration tests."""
     fake_models = types.ModuleType("parakeet_rocm.models.parakeet")
     fake_models.get_model = lambda *_args, **_kwargs: object()
-    fake_models.clear_model_cache = lambda: None
+    fake_models.clear_model_cache = lambda: True
     fake_models.unload_model_to_cpu = lambda: None
     monkeypatch.setitem(sys.modules, "parakeet_rocm.models.parakeet", fake_models)
     fake_transcription = types.ModuleType("parakeet_rocm.transcription")

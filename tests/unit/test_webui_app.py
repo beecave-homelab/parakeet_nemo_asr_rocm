@@ -191,8 +191,9 @@ def _install_fake_model_accessors(monkeypatch: pytest.MonkeyPatch) -> types.Modu
     def unload_model_to_cpu() -> None:
         mod.unload_model_to_cpu_called = True
 
-    def clear_model_cache() -> None:
+    def clear_model_cache() -> bool:
         mod.clear_model_cache_called = True
+        return True
 
     mod.unload_model_to_cpu = unload_model_to_cpu
     mod.clear_model_cache = clear_model_cache
