@@ -210,6 +210,7 @@ def _setup_watch_mode(
         output_format=output_format,
         output_template=output_template,
         watch_base_dirs=base_dirs,
+        model_name=model_name,
         verbose=verbose,
         quiet=quiet,
     )

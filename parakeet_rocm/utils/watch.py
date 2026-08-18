@@ -36,6 +36,7 @@ from parakeet_rocm.utils.console import get_console, print_status
 from parakeet_rocm.utils.constant import (
     IDLE_CLEAR_TIMEOUT_SEC,
     IDLE_UNLOAD_TIMEOUT_SEC,
+    PARAKEET_MODEL_NAME,
 )
 from parakeet_rocm.utils.file_utils import (
     AUDIO_EXTENSIONS,
@@ -155,6 +156,7 @@ def watch_and_transcribe(
     output_template: str,
     watch_base_dirs: Sequence[Path] | None = None,
     audio_exts: Sequence[str] | None = None,
+    model_name: str | None = None,
     verbose: bool = False,
     quiet: bool = False,
 ) -> None:
@@ -183,11 +185,17 @@ def watch_and_transcribe(
             computing target output locations.
         audio_exts (Sequence[str] | None): Allowed audio extensions; defaults
             to ``AUDIO_EXTENSIONS`` when ``None``.
+        model_name (str | None): Name of the model the watcher should
+            offload during idle cleanup. Should match the model selected by
+            the CLI (``--model``) so idle cleanup frees the model that is
+            actually cached, not the configured default. When ``None``, the
+            ``PARAKEET_MODEL_NAME`` default is used.
         verbose: Whether to print watcher debug information.
         quiet: Whether to suppress watcher status output.
 
     """
     patterns = list(patterns)
+    watch_model_name = model_name or PARAKEET_MODEL_NAME
     print_status(
         "watch",
         f"Monitoring {escape(', '.join(map(str, patterns)))} …  (Press Ctrl+C to stop)",
@@ -268,21 +276,44 @@ def watch_and_transcribe(
                                 f"Idle for >= {IDLE_UNLOAD_TIMEOUT_SEC}s - offloading model to CPU",
                                 quiet=quiet,
                             )
-                        unload_model_to_cpu()
-                    finally:
+                        unload_model_to_cpu(watch_model_name)
+                    except Exception:
+                        # Never let idle cleanup crash the watcher; retry on
+                        # the next idle poll instead of marking it done.
+                        print_status(
+                            "watch",
+                            f"Failed to offload {watch_model_name} to CPU - will retry",
+                            quiet=quiet,
+                            err=True,
+                        )
+                    else:
                         unloaded = True
                 # If still idle past clear timeout, drop the cache entirely
                 if not cleared and (now - last_activity) >= IDLE_CLEAR_TIMEOUT_SEC:
+                    if verbose:
+                        print_status(
+                            "watch",
+                            f"Idle for >= {IDLE_CLEAR_TIMEOUT_SEC}s - clearing model cache",
+                            quiet=quiet,
+                        )
+                    # clear_model_cache() reports eviction failure by
+                    # returning False instead of raising; a failed clear
+                    # leaves ``cleared`` unset and the next idle poll retries.
+                    # The except below is a belt-and-braces guard for
+                    # unexpected errors (e.g. a future re-raise variant).
                     try:
-                        if verbose:
-                            print_status(
-                                "watch",
-                                f"Idle for >= {IDLE_CLEAR_TIMEOUT_SEC}s - clearing model cache",
-                                quiet=quiet,
-                            )
-                        clear_model_cache()
-                    finally:
-                        cleared = True
+                        cleared = clear_model_cache()
+                    except Exception:
+                        # Never let idle cleanup crash the watcher; retry on
+                        # the next idle poll instead of marking it done.
+                        cleared = False
+                    if not cleared:
+                        print_status(
+                            "watch",
+                            "Failed to clear model cache - will retry",
+                            quiet=quiet,
+                            err=True,
+                        )
             time.sleep(poll_interval)
     finally:
         # Restore the previous SIGINT handler so the caller's signal

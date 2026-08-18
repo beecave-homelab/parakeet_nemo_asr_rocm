@@ -133,3 +133,48 @@ def test_api_command_starts_api_only_app(monkeypatch: pytest.MonkeyPatch) -> Non
     assert called["server_port"] == 9000
     assert called["debug"] is True
     assert called["share"] is False
+
+
+def test_transcribe__forwards_selected_model_in_watch_mode(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """--watch mode must forward the CLI-selected model to the watcher.
+
+    Regression test for issue #50: when ``--model`` differs from the
+    configured default, the watcher's idle cleanup must target the cached
+    CLI model, so the model name has to reach ``watch_and_transcribe``.
+    """
+    import importlib
+
+    received: dict[str, object] = {}
+
+    class FakeWatchModule:
+        @staticmethod
+        def watch_and_transcribe(**kwargs: object) -> list[Path]:
+            received.update(kwargs)
+            return []
+
+    class FakeTransModule:
+        @staticmethod
+        def cli_transcribe(**_kwargs: object) -> list[Path]:
+            return []
+
+    def fake_import_module(name: str) -> object:
+        if name.endswith("utils.watch"):
+            return FakeWatchModule
+        if name.endswith("transcribe"):
+            return FakeTransModule
+        raise ImportError(name)
+
+    monkeypatch.setattr(importlib, "import_module", fake_import_module)
+    monkeypatch.setattr(cli, "RESOLVE_INPUT_PATHS", lambda files: [])
+
+    cli.transcribe(
+        audio_files=None,
+        watch=[str(tmp_path)],
+        model_name="custom/model-x",
+        output_dir=tmp_path,
+        output_format="txt",
+    )
+
+    assert received.get("model_name") == "custom/model-x"

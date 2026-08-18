@@ -17,6 +17,7 @@ idle-offload threads and ``clear_model_cache``.
 
 from __future__ import annotations
 
+import gc
 import threading
 from functools import lru_cache
 
@@ -199,11 +200,25 @@ def unload_model_to_cpu(model_name: str = PARAKEET_MODEL_NAME) -> None:
                 logger.debug("torch.cuda.empty_cache() failed", exc_info=True)
 
 
-def clear_model_cache() -> None:
+def clear_model_cache(release_allocator: bool = True) -> bool:
     """Clear the internal LRU cache of loaded model instances.
 
     After this call, cached models are discarded and will be recreated when
     next requested.
+
+    Args:
+        release_allocator: When ``True`` (default), also run a garbage
+            collection pass and release PyTorch's CUDA/ROCm caching-allocator
+            memory after the cached references are dropped. This reclaims
+            allocator blocks that outlive the discarded model objects, so
+            VRAM is actually returned instead of remaining parked in the
+            allocator's free pool.
+
+    Returns:
+        ``True`` when the cached entries were evicted; ``False`` when the
+        eviction itself failed, so idle-cleanup callers know not to mark the
+        cleanup complete and to retry on the next poll. Allocator release
+        after eviction is best-effort and never fails the call.
     """
     with _cache_lock:
         try:
@@ -211,3 +226,27 @@ def clear_model_cache() -> None:
             _cached_keys.clear()
         except Exception:
             logger.debug("cache_clear() failed", exc_info=True)
+            return False
+    if release_allocator:
+        _release_gpu_allocator_memory()
+    return True
+
+
+def _release_gpu_allocator_memory() -> None:
+    """Release PyTorch CUDA/ROCm allocator memory held by freed blocks.
+
+    Best-effort: every step is guarded, so a failure never propagates to the
+    idle-cleanup caller. Garbage collection runs first so tensor objects
+    whose only reference was the cleared LRU cache become collectable before
+    the allocator release; ``torch.cuda.empty_cache()`` then returns the
+    freed blocks to the driver.
+    """
+    try:
+        gc.collect()
+    except Exception:
+        logger.debug("gc.collect() failed", exc_info=True)
+    if torch.cuda.is_available():
+        try:
+            torch.cuda.empty_cache()
+        except Exception:
+            logger.debug("torch.cuda.empty_cache() failed", exc_info=True)

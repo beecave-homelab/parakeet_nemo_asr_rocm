@@ -7,7 +7,6 @@ architecture with dependency injection for testability.
 from __future__ import annotations
 
 import atexit
-import gc
 import json
 import os
 import pathlib
@@ -23,7 +22,6 @@ except ImportError:  # pragma: no cover - optional dependency
 # Pre-import scipy.linalg to avoid Cython fused_type errors when NeMo imports it later
 # via lightning.pytorch -> torchmetrics -> scipy.signal -> scipy.linalg
 import scipy.linalg  # noqa: F401
-import torch
 
 from parakeet_rocm.models.parakeet import clear_model_cache, unload_model_to_cpu
 from parakeet_rocm.utils.console import get_error_console, print_status
@@ -98,18 +96,12 @@ def _cleanup_models() -> None:
     try:
         unload_model_to_cpu()
     finally:
+        # clear_model_cache() already releases the PyTorch allocator
+        # (gc + empty_cache) internally; no extra release needed here.
         try:
             clear_model_cache()
-        finally:
-            try:
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-            except Exception:
-                pass
-            try:
-                gc.collect()
-            except Exception:
-                pass
+        except Exception:
+            pass
 
 
 def _register_shutdown_handlers() -> None:
@@ -162,17 +154,23 @@ def _start_idle_offload_thread(job_manager: JobManager) -> None:
                             logger.info("[webui] Idle threshold reached - offloading model to CPU")
                             unload_model_to_cpu()
                         except Exception as e:
+                            # Never let idle cleanup crash the thread; retry on
+                            # the next idle poll instead of marking it done.
                             logger.warning(f"[webui] Failed to unload model: {e}")
-                        finally:
+                        else:
                             unloaded = True
                     if not cleared and (now - last_activity) >= IDLE_CLEAR_TIMEOUT_SEC:
+                        logger.info("[webui] Extended idle - clearing model cache")
+                        # clear_model_cache() reports eviction failure by
+                        # returning False instead of raising; a failed clear
+                        # leaves ``cleared`` unset and the next idle poll retries.
                         try:
-                            logger.info("[webui] Extended idle - clearing model cache")
-                            clear_model_cache()
+                            cleared = clear_model_cache()
                         except Exception as e:
                             logger.warning(f"[webui] Failed to clear model cache: {e}")
-                        finally:
-                            cleared = True
+                            cleared = False
+                        if not cleared:
+                            logger.warning("[webui] Failed to clear model cache - will retry")
             except Exception as e:
                 logger.warning(f"[webui] Idle offload thread error: {e}")
             time.sleep(5.0)

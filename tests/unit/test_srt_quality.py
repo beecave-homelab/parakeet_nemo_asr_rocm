@@ -22,8 +22,20 @@ def test_compute_srt_quality_empty_segments() -> None:
     assert metrics["srt_length"] == 0
 
 
-def test_compute_srt_quality_basic_metrics() -> None:
+def test_compute_srt_quality_basic_metrics(monkeypatch: pytest.MonkeyPatch) -> None:
     """compute_srt_quality should compute averages and readability rates."""
+    # Pin the thresholds this test asserts against: they are read from the
+    # environment at import time, so an ambient `.env` (e.g.
+    # MIN_SEGMENT_DURATION_SEC=1.5, MAX_CPS=14) would otherwise flip the rates.
+    import parakeet_rocm.formatting.srt_quality as srt_quality_mod
+
+    monkeypatch.setattr(srt_quality_mod, "MIN_SEGMENT_DURATION_SEC", 0.5)
+    monkeypatch.setattr(srt_quality_mod, "MAX_SEGMENT_DURATION_SEC", 7.0)
+    monkeypatch.setattr(srt_quality_mod, "MIN_CPS", 10.0)
+    monkeypatch.setattr(srt_quality_mod, "MAX_CPS", 22.0)
+    monkeypatch.setattr(srt_quality_mod, "MAX_LINE_CHARS", 42)
+    monkeypatch.setattr(srt_quality_mod, "MAX_LINES_PER_BLOCK", 2)
+
     segments = [
         {"start": 0.0, "end": 1.0, "text": "hello world"},
         {"start": 1.0, "end": 2.0, "text": "this is a longer line"},

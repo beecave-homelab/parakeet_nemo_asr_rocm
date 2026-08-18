@@ -42,6 +42,14 @@ def test_merge_word_segments_updates_segments(monkeypatch: pytest.MonkeyPatch) -
         word_segments=initial_words,
     )
 
+    # Pin the segmentation constants this test depends on: they are read from
+    # the environment at import time, so an ambient `.env` (e.g.
+    # MIN_SEGMENT_DURATION_SEC=1.5) would otherwise change the expected timing.
+    import parakeet_rocm.timestamps.segmentation as segmentation_mod
+
+    monkeypatch.setattr(segmentation_mod, "MIN_SEGMENT_DURATION_SEC", 0.5)
+    monkeypatch.setattr(segmentation_mod, "DISPLAY_BUFFER_SEC", 0.2)
+
     # Patch helpers used by _merge_word_segments
     monkeypatch.setattr(fp, "calc_time_stride", lambda _m, verbose=False: 1.0)
 
